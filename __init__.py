@@ -33,6 +33,7 @@ class WebReportRecord(BaseModel):
     target_boss: str
     damage: Optional[str]
     is_kill_boss: bool
+    froce_use_full_chance: bool
     is_proxy_report: bool
     proxy_report_member: Optional[str]
     comment: Optional[str]
@@ -73,6 +74,109 @@ class WebQueryReport(BaseModel):
     cycle: Optional[str]
 
 
+class WebSetClanbattleData(BaseModel):
+    clan_gid: str
+    data_num: int
+
+
+class WebGetRoute:
+    @staticmethod
+    async def get_joined_clan(uid: str):
+        clan_list = clanbattle.get_joined_clan(uid)
+        return {"err_code": 0, "clan_list": clan_list}
+
+    @staticmethod
+    async def boss_status(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        boss_status = clan.get_current_boss_state()
+        return {"err_code": 0, "boss_status": boss_status}
+
+    @staticmethod
+    async def member_list(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        member_list = clan.get_clan_members_with_info()
+        return{"err_code": 0, "member_list": member_list}
+
+    @staticmethod
+    async def report_unqueue(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        result = clan.delete_battle_in_progress(uid)
+        if result:
+            return{"err_code": 0}
+        else:
+            return{"err_code": 403, "msg": "取消申请失败，请确认您已经在出刀了喵"}
+
+    @staticmethod
+    async def get_in_queue(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        in_process_list_dict = {}
+        for i in range(1, 6):
+            in_process_list = []
+            in_processes = clan.get_battle_in_progress(boss=i)
+            for process in in_processes:
+                in_process_list.append(model_to_dict(process))
+            in_process_list_dict[str(i)] = in_process_list
+        return {"err_code": 0, "queue": in_process_list_dict}
+
+    @staticmethod
+    async def on_tree_list(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        on_tree_list_dict = {}
+        for i in range(1, 6):
+            on_tree_list = []
+            on_trees = clan.get_battle_on_tree(boss=i)
+            for on_tree in on_trees:
+                on_tree_list.append(model_to_dict(on_tree))
+            on_tree_list_dict[str(i)] = on_tree_list
+        return {"err_code": 0, "on_tree": on_tree_list_dict}
+
+    @staticmethod
+    async def subscribe_list(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        subscribe_list_dict = {}
+        for i in range(1, 6):
+            subscribe_list = []
+            subscribes = clan.get_battle_subscribe(boss=i)
+            for subscribe in subscribes:
+                subscribe_list.append(model_to_dict(subscribe))
+            subscribe_list_dict[str(i)] = subscribe_list
+        return {"err_code": 0, "subscribe": subscribe_list_dict}
+
+    @staticmethod
+    async def battle_status(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        status_list = []
+        members = clan.get_clan_members()
+        for member in members:
+            status = clan.get_today_record_status(member)
+            status_list.append(status)
+        return {"err_code": 0, "status": status_list}
+
+    @staticmethod
+    async def current_clanbattle_data_num(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        data_num = clan.get_current_clanbattle_data()
+        return{"err_code": 0, "data_num": data_num}
+
+
+@app.get("/api/clanbattle/{api_name}")
+async def _(api_name: str, response: Response, clan_gid: str = None, session: str = Cookie(None)):
+    if not (uid := WebAuth.check_session_valid(session)):
+        return {"err_code": -1, "msg": "会话错误，请重新登录"}
+    if not hasattr(WebGetRoute, api_name):
+        response.status_code = 404
+        return {"err_code": 404, "msg": "找不到该路由"}
+    if api_name in ["get_joined_clan"]:
+        ret = await getattr(WebGetRoute, api_name)(uid=uid)
+    else:
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        #clan = clanbattle.get_clan_data(clan_gid)
+        ret = await getattr(WebGetRoute, api_name)(uid=uid, clan_gid=clan_gid)
+    return ret
+
+
 @app.post("/api/clanbattle/login")
 async def _(item: WebLoginPost, request: Request, response: Response):
     login_item = WebAuth.login(item.qq_uid, item.password)
@@ -83,38 +187,6 @@ async def _(item: WebLoginPost, request: Request, response: Response):
     session = login_item[1]
     response.set_cookie(key="session", value=session)
     return {"err_code": 0, "msg": "", "cookie": session}
-
-
-@app.get("/api/clanbattle/get_joined_clan")
-async def _(session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    clan_list = clanbattle.get_joined_clan(uid)
-    return {"err_code": 0, "clan_list": clan_list}
-
-
-@app.get("/api/clanbattle/boss_status")
-async def _(clan_gid: str = None, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(clan_gid)
-    boss_status = clan.get_current_boss_state()
-    return {"err_code": 0, "boss_status": boss_status}
-
-
-@app.get("/api/clanbattle/member_list")
-async def _(clan_gid: str = None, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(clan_gid)
-    member_list = clan.get_clan_members_with_info()
-    return{"err_code": 0, "member_list": member_list}
 
 
 @app.post("/api/clanbattle/report_record")
@@ -132,16 +204,17 @@ async def _(item: WebReportRecord, session: str = Cookie(None)):
     challenge_boss = int(item.target_boss)
     proxy_report_uid = item.proxy_report_member if item.is_proxy_report else None
     comment = item.comment if item.comment else None
+    force_use_full_chance = item.froce_use_full_chance
     if not item.is_kill_boss:
         challenge_damage = item.damage
     else:
         boss_status = clan.get_current_boss_state()[challenge_boss-1]
         challenge_damage = str(boss_status.boss_hp)
     if item.is_proxy_report:
-        result = await clan.commit_record(proxy_report_uid, challenge_boss, challenge_damage, comment, uid)
+        result = await clan.commit_record(proxy_report_uid, challenge_boss, challenge_damage, comment, uid, force_use_full_chance)
         uid = proxy_report_uid
     else:
-        result = await clan.commit_record(uid, challenge_boss, challenge_damage, comment)
+        result = await clan.commit_record(uid, challenge_boss, challenge_damage, comment, None, force_use_full_chance)
     bot: Bot = list(nonebot.get_bots().values())[0]
     if result == CommitRecordResult.success:
         record = clan.get_recent_record(uid)[0]
@@ -186,21 +259,6 @@ async def _(item: WebReportQueue, session: str = Cookie(None)):
         return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
 
-@app.get("/api/clanbattle/report_unqueue")
-async def _(clan_gid: str = None, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(clan_gid)
-    result = clan.delete_battle_in_progress(uid)
-    if result:
-        return{"err_code": 0}
-    else:
-        return{"err_code": 403, "msg": "取消申请失败，请确认您已经在出刀了喵"}
-
-
 @app.post("/api/clanbattle/report_subscribe")
 async def _(item: WebReportSubscribe, session: str = Cookie(None)):
     if not (uid := WebAuth.check_session_valid(session)):
@@ -217,10 +275,12 @@ async def _(item: WebReportSubscribe, session: str = Cookie(None)):
     if result == CommitSubscribeResult.success:
         await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"开始挑战{challenge_boss}王")
         return{"err_code": 0}
-    elif result == CommitSubscribeResult.boss_cycle_already_killed:
-        return{"err_code": 403, "msg": "您已经有正在挑战的boss"}
     elif result == CommitSubscribeResult.already_in_progress:
+        return{"err_code": 403, "msg": "您已经正在挑战这个boss了"}
+    elif result == CommitSubscribeResult.already_subscribed:
         return{"err_code": 403, "msg": "您已经预约了这个boss了"}
+    elif result == CommitSubscribeResult.boss_cycle_already_killed:
+        return{"err_code": 403, "msg": "boss已经死亡，请刷新页面重新查看"}
     elif result == CommitSubscribeResult.member_not_in_clan:
         return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
@@ -241,6 +301,7 @@ async def _(item: WebReportSubscribe, session: str = Cookie(None)):
     else:
         return{"err_code": 403, "msg": "取消预约失败，请确认您已经预约该boss喵"}
 
+
 @app.post("/api/clanbattle/report_ontree")
 async def _(item: WebReportOnTree, session: str = Cookie(None)):
     if not (uid := WebAuth.check_session_valid(session)):
@@ -251,7 +312,7 @@ async def _(item: WebReportOnTree, session: str = Cookie(None)):
     clan = clanbattle.get_clan_data(item.clan_gid)
     boss = int(item.boss)
     comment = item.comment if item.comment else None
-    result = clan.commit_battle_on_tree(uid,boss,comment)
+    result = clan.commit_battle_on_tree(uid, boss, comment)
     if result == CommitBattlrOnTreeResult.success:
         return{"err_code": 0}
     elif result == CommitBattlrOnTreeResult.already_in_other_boss_progress:
@@ -260,6 +321,7 @@ async def _(item: WebReportOnTree, session: str = Cookie(None)):
         return{"err_code": 403, "msg": "您已经在树上了，不用再挂了"}
     elif result == CommitBattlrOnTreeResult.member_not_in_clan:
         return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+
 
 @app.post("/api/clanbattle/report_sl")
 async def _(item: WebReportSL, session: str = Cookie(None)):
@@ -277,68 +339,15 @@ async def _(item: WebReportSL, session: str = Cookie(None)):
     proxy_report_uid = item.proxy_report_uid if item.is_proxy_report else None
     comment = item.comment if item.comment else None
     if item.is_proxy_report:
-        result = clan.commit_battle_sl(proxy_report_uid,boss,comment,uid)
+        result = clan.commit_battle_sl(proxy_report_uid, boss, comment, uid)
     else:
-        result = clan.commit_battle_sl(uid,boss,comment,proxy_report_uid)
+        result = clan.commit_battle_sl(uid, boss, comment, proxy_report_uid)
     if result == CommitSLResult.success:
         return{"err_code": 0}
     elif result == CommitSLResult.already_sl:
         return{"err_code": 403, "msg": "您今天已经使用过SL了"}
     elif result == CommitSLResult.member_not_in_clan:
         return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
-
-@app.get("/api/clanbattle/get_in_queue")
-async def _(clan_gid: str = None, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(clan_gid)
-    in_process_list_dict = {}
-    for i in range(1, 6):
-        in_process_list = []
-        in_processes = clan.get_battle_in_progress(boss=i)
-        for process in in_processes:
-            in_process_list.append(model_to_dict(process))
-        in_process_list_dict[str(i)] = in_process_list
-    return {"err_code": 0, "queue": in_process_list_dict}
-
-
-@app.get("/api/clanbattle/on_tree_list")
-async def _(clan_gid: str = None, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(clan_gid)
-    on_tree_list_dict = {}
-    for i in range(1, 6):
-        on_tree_list = []
-        on_trees = clan.get_battle_on_tree(boss=i)
-        for on_tree in on_trees:
-            on_tree_list.append(model_to_dict(on_tree))
-        on_tree_list_dict[str(i)] = on_tree_list
-    return {"err_code": 0, "on_tree": on_tree_list_dict}
-
-
-@app.get("/api/clanbattle/subscribe_list")
-async def _(clan_gid: str = None, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(clan_gid)
-    subscribe_list_dict = {}
-    for i in range(1, 6):
-        subscribe_list = []
-        subscribes = clan.get_battle_subscribe(boss=i)
-        for subscribe in subscribes:
-            subscribe_list.append(model_to_dict(subscribe))
-        subscribe_list_dict[str(i)] = subscribe_list
-    return {"err_code": 0, "subscribe": subscribe_list_dict}
 
 
 @app.post("/api/clanbattle/query_record")
@@ -352,7 +361,7 @@ async def _(item: WebQueryReport, session: str = Cookie(None)):
     uid = item.member if item.member != '' else None
     boss = int(item.boss) if item.boss != '' else None
     cycle = int(item.cycle) if item.cycle != '' else None
-    if item.date != '':
+    if item.date and item.date != '':
         day_data = item.date.split('T')[0]
         detla = datetime.timedelta(
             hours=9) if clan.clan_info.clan_type == "jp" else datetime.timedelta(hours=8)
@@ -373,20 +382,21 @@ async def _(item: WebQueryReport, session: str = Cookie(None)):
     return {"err_code": 0, "record": record_list}
 
 
-@app.get("/api/clanbattle/battle_status")
-async def _(clan_gid: str = None, session: str = Cookie(None)):
+@app.post("/api/clanbattle/change_current_clanbattle_data_num")
+async def _(item: WebSetClanbattleData, session: str = Cookie(None)):
     if not (uid := WebAuth.check_session_valid(session)):
         return {"err_code": -1, "msg": "会话错误，请重新登录"}
     joined_clan = clanbattle.get_joined_clan(uid)
-    if not clan_gid in joined_clan:
+    if not item.clan_gid in joined_clan:
         return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(clan_gid)
-    status_list = []
-    members = clan.get_clan_members()
-    for member in members:
-        status = clan.get_today_record_status(member)
-        status_list.append(status)
-    return {"err_code": 0, "status": status_list}
+    clan = clanbattle.get_clan_data(item.clan_gid)
+    if not clan.check_admin_permission(str(uid)):
+        return {"err_code": -2, "msg": "您不是会战管理员，无权切换会战档案"}
+    clan.set_current_clanbattle_data(item.data_num)
+    bot: Bot = list(nonebot.get_bots().values())[0]
+    gid = clan.clan_info.clan_gid
+    await bot.send_group_msg(group_id=gid, message=f"会战管理员已经将会战档案切换为{item.data_num}，请注意")
+    return {"err_code": 0, "msg": "设置成功"}
 
 
 class clanbattle_qq:
@@ -395,10 +405,10 @@ class clanbattle_qq:
     )
     create_clan = worker.on_regex(r"^创建([台日])服公会")
     commit_record = worker.on_regex(
-        r"^报刀([1-5]{1})( )?(\d+[EeKkWwBb]{0,2})?([:：](.*?))?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$"
+        r"^报刀(整)?([1-5]{1})( )?(\d+[EeKkWwBb]{0,2})?([:：](.*?))?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$"
     )
     commit_kill_record = worker.on_regex(
-        r"^尾刀([1-5]{1})([:：](.*?))?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
+        r"^尾刀(整)?([1-5]{1})([:：](.*?))?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
     progress = worker.on_regex(r"^(状态|查)([1-5]{0,5})?$")
     query_recent_record = worker.on_regex(r"^查刀$")
     queue = worker.on_regex(r"^申请(出刀)?([1-5]{1})([:：](.*?))?$")
@@ -408,6 +418,7 @@ class clanbattle_qq:
     on_tree = worker.on_regex(
         r"^挂树([1-5]{1})([:：](.*?))?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$"
     )
+    query_on_tree = worker.on_regex(r"^查树$")
     subscribe = worker.on_regex(r"^预约([1-5]{1})( )?([0-9]{1,3})?([:：](.*?))?$")
     unsubscribe = worker.on_regex(r"^取消预约([1-5]{1})( )?([0-9]{1,3})?$")
     undo_record_commit = worker.on_regex(
@@ -415,13 +426,14 @@ class clanbattle_qq:
     )
     sl = worker.on_regex(
         r"^[sS][lL](\?)?([1-5]{1})([:：](.*?))?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
-    sl_query = on_regex(r"^查sl(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
+    sl_query = on_regex(r"^查[sS][lL](\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
     webview = worker.on_regex(r"^面板$")
     help = worker.on_regex(r"^帮助$")
     join_clan = worker.on_regex(r"^加入公会(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
     leave_clan = worker.on_regex(r"^退出公会$")
     refresh_clan_admin = worker.on_regex(r"^刷新会战管理员列表$")
-    rename_clan_uname = worker.on_regex(r"^修改昵称 ?(.{1,20})(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?")
+    rename_clan_uname = worker.on_regex(
+        r"^修改昵称 ?(.{1,20})(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?")
     rename_clan = worker.on_regex(r"^修改公会名称 ?(.{1,20})")
     remove_clan_member = worker.on_regex(r"^移出公会 ?(.{1,20})")
     reset_password = worker.on_regex(r"^设置密码 ?(.{1,20})$")
@@ -468,6 +480,8 @@ async def create_clan_qq(bot: Bot, event: GroupMessageEvent, state: T_State):
 async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     clan = clanbattle.get_clan_data(gid)
+    if not clan:
+        await clanbattle_qq.progress.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     boss_status = clan.get_current_boss_state()
     if state['_matched_groups'][0] == "状态" and not state['_matched_groups'][1]:
         msg = "当前状态：\n"
@@ -505,16 +519,20 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
 @clanbattle_qq.commit_record.handle()
 async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State):
     proxy_report_uid: str = None
-    if not state['_matched_groups'][6]:
+    if not state['_matched_groups'][7]:
         uid = str(event.user_id)
     else:
-        uid = state['_matched_groups'][6]
+        uid = state['_matched_groups'][7]
         proxy_report_uid = str(event.user_id)
-    challenge_boss = int(state['_matched_groups'][0])
-    challenge_damage = state['_matched_groups'][2]
-    comment = state['_matched_groups'][4]
+    force_use_full_chance = True if state['_matched_groups'][0] else False
+    challenge_boss = int(state['_matched_groups'][1]
+                         ) if state['_matched_groups'][1] else None
+    challenge_damage = state['_matched_groups'][3]
+    comment = state['_matched_groups'][5]
     clan = clanbattle.get_clan_data(str(event.group_id))
-    result = await clan.commit_record(uid, challenge_boss, challenge_damage, comment, proxy_report_uid)
+    if not clan:
+        await clanbattle_qq.commit_record.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
+    result = await clan.commit_record(uid, challenge_boss, challenge_damage, comment, proxy_report_uid, force_use_full_chance)
     if result == CommitRecordResult.success:
         record = clan.get_recent_record(uid)[0]
         today_status = clan.get_today_record_status(uid)
@@ -536,16 +554,22 @@ async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State):
 
 @clanbattle_qq.commit_kill_record.handle()
 async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State):
-    if not state['_matched_groups'][4]:
+    proxy_report_uid: str = None
+    if not state['_matched_groups'][5]:
         uid = str(event.user_id)
     else:
-        uid = state['_matched_groups'][4]
-    challenge_boss = int(state['_matched_groups'][0])
-    comment = state['_matched_groups'][2]
+        uid = state['_matched_groups'][5]
+        proxy_report_uid = str(event.user_id)
+    force_use_full_chance = True if state['_matched_groups'][0] else False
+    challenge_boss = int(state['_matched_groups'][1]
+                         ) if state['_matched_groups'][1] else None
+    comment = state['_matched_groups'][3]
     clan = clanbattle.get_clan_data(str(event.group_id))
     boss_status = clan.get_current_boss_state()[challenge_boss-1]
     challenge_damage = str(boss_status.boss_hp)
-    result = await clan.commit_record(uid, challenge_boss, challenge_damage, comment)
+    if not clan:
+        await clanbattle_qq.commit_kill_record.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
+    result = await clan.commit_record(uid, challenge_boss, challenge_damage, comment, proxy_report_uid, force_use_full_chance)
     if result == CommitRecordResult.success:
         record = clan.get_recent_record(uid)[0]
         today_status = clan.get_today_record_status(uid)
@@ -571,6 +595,8 @@ async def commit_in_progress(bot: Bot, event: GroupMessageEvent, state: T_State)
     challenge_boss = int(state['_matched_groups'][1])
     comment = state['_matched_groups'][3]
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.queue.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     if processes := clan.get_battle_in_progress(boss=challenge_boss):
         in_process_list = []
         for proc in processes:
@@ -599,6 +625,8 @@ async def commit_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State):
     else:
         uid = state['_matched_groups'][4]
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.on_tree.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     result = clan.commit_battle_on_tree(uid, challenge_boss, comment)
     if result == CommitBattlrOnTreeResult.success:
         await clanbattle_qq.on_tree.finish("嘿呀，"+MessageSegment.at(uid) + f"在{challenge_boss}王挂树了")
@@ -620,12 +648,16 @@ async def commit_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State):
     cycle = int(state['_matched_groups'][2]
                 ) if state['_matched_groups'][2] else None
     clan = clanbattle.get_clan_data(str(event.group_id))
-    result = clan.commit_batle_subscribe(uid, challenge_boss, comment, cycle)
+    if not clan:
+        await clanbattle_qq.subscribe.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
+    result = clan.commit_batle_subscribe(uid, challenge_boss, cycle,  comment)
     if result == CommitSubscribeResult.success:
         await clanbattle_qq.subscribe.finish("预约成功")
     elif result == CommitSubscribeResult.boss_cycle_already_killed:
         await clanbattle_qq.subscribe.finish("当前boss已经被击杀")
     elif result == CommitSubscribeResult.already_in_progress:
+        await clanbattle_qq.subscribe.finish("您已经在挑战该boss了")
+    elif result == CommitSubscribeResult.already_subscribed:
         await clanbattle_qq.subscribe.finish("您已经预约过该boss了")
     elif result == CommitSubscribeResult.member_not_in_clan:
         await clanbattle_qq.subscribe.finish("您还未加入公会，请发送“加入公会”加入")
@@ -655,6 +687,8 @@ async def undo_record_commit(bot: Bot, event: GroupMessageEvent, state: T_State)
     else:
         uid = state['_matched_groups'][1]
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.undo_record_commit.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     ret = clan.delete_recent_record(uid)
     if ret:
         await clanbattle_qq.undo_record_commit.finish("出刀撤回成功")
@@ -669,6 +703,8 @@ async def unsubscribe_boss(bot: Bot, event: GroupMessageEvent, state: T_State):
     cycle = int(state['_matched_groups'][2]
                 ) if state['_matched_groups'][2] else None
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.unsubscribe.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     result = clan.delete_battle_subscribe(uid, challenge_boss, cycle)
     if result:
         await clanbattle_qq.unsubscribe.finish("取消预约成功desu")
@@ -679,6 +715,8 @@ async def unsubscribe_boss(bot: Bot, event: GroupMessageEvent, state: T_State):
 @clanbattle_qq.query_recent_record.handle()
 async def query_recent_record(bot: Bot, event: GroupMessageEvent, state: T_State):
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.query_recent_record.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     records = clan.get_recent_record(3)
     if not records:
         await clanbattle_qq.query_recent_record.finish("现在还没有出刀记录哦，快去出刀吧")
@@ -702,12 +740,16 @@ async def commit_sl(bot: Bot, event: GroupMessageEvent, state: T_State):
         uid = state['_matched_groups'][5]
         proxy_report_uid = str(event.user_id)
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.sl.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     result = clan.commit_battle_sl(
         uid, challenge_boss, comment, proxy_report_uid)
     if result == CommitSLResult.success:
         await clanbattle_qq.sl.finish("sl已经记录")
     elif result == CommitSLResult.already_sl:
         await clanbattle_qq.sl.finish("您今天已经sl过了")
+    elif result == CommitSLResult.illegal_target_boss:
+        await clanbattle_qq.on_tree.finish("您还不能挑战这个boss，别sl了")
     elif result == CommitSLResult.member_not_in_clan:
         await clanbattle_qq.sl.finish("您还未加入公会，请发送“加入公会”加入")
 
@@ -716,6 +758,8 @@ async def commit_sl(bot: Bot, event: GroupMessageEvent, state: T_State):
 async def unqueue_boss(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.unqueue.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     result = clan.delete_battle_in_progress(uid)
     if result:
         await clanbattle_qq.unsubscribe.finish("取消申请成功desu")
@@ -726,6 +770,8 @@ async def unqueue_boss(bot: Bot, event: GroupMessageEvent, state: T_State):
 @clanbattle_qq.showqueue.handle()
 async def show_queue(bot: Bot, event: GroupMessageEvent, state: T_State):
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.showqueue.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     progresses = clan.get_battle_in_progress()
     if not progresses:
         await clanbattle_qq.showqueue.finish("当前没有人申请出刀，赶快来出刀吧")
@@ -748,11 +794,35 @@ async def query_sl(bot: Bot, event: GroupMessageEvent, state: T_State):
     else:
         uid = state['_matched_groups'][1]
     clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.sl_query.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     sl = clan.get_today_battle_sl(uid=uid)
     if sl:
         await clanbattle_qq.sl_query.finish("您今天已经sl过了")
     else:
         await clanbattle_qq.sl_query.finish("您今天还没有使用过sl哦")
+
+
+@clanbattle_qq.query_on_tree.handle()
+async def query_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State):
+    clan = clanbattle.get_clan_data(str(event.group_id))
+    if not clan:
+        await clanbattle_qq.query_on_tree.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
+    on_tree_dict = {}
+    for i in range(1, 6):
+        on_tree_dict[i] = []
+    on_tree_list = clan.get_battle_on_tree()
+    for on_tree_item in on_tree_list:
+        on_tree_dict[on_tree_item.target_boss].append(
+            clan.get_user_name(on_tree_item.member_uid))
+    msg = ""
+    for i in range(1, 6):
+        if on_tree_dict[i]:
+            name_list = "".join(on_tree_dict[i])
+            msg += f"当前{name_list}挂在{i}王上\n"
+    if msg == "":
+        msg = "当前没有人挂在树上哦"
+    await clanbattle_qq.query_on_tree.finish(msg.strip())
 
 
 @clanbattle_qq.reset_password.handle()
@@ -806,6 +876,7 @@ async def rename_clan(bot: Bot, event: GroupMessageEvent, state: T_State):
         clan.rename_clan(state['_matched_groups'][0])
         await clanbattle_qq.rename_clan.finish("修改公会名称成功")
 
+
 @clanbattle_qq.remove_clan_member.handle()
 async def remove_clan_member(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
@@ -815,11 +886,12 @@ async def remove_clan_member(bot: Bot, event: GroupMessageEvent, state: T_State)
         await clanbattle_qq.remove_clan_member.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
     if not clan.check_admin_permission(uid):
         await clanbattle_qq.remove_clan_member.finish("您不是会战管理员，无权使用本指令")
-    remove_uid =state['_matched_groups'][0]
+    remove_uid = state['_matched_groups'][0]
     if clan.delete_clan_member(remove_uid):
         await clanbattle_qq.remove_clan_member.finish("成功将该成员移出公会")
     else:
         await clanbattle_qq.remove_clan_member.finish("移出公会失败，Ta可能还未加入公会？")
+
 
 @clanbattle_qq.rename_clan_uname.handle()
 async def rename_clan_uname(bot: Bot, event: GroupMessageEvent, state: T_State):
@@ -834,16 +906,19 @@ async def rename_clan_uname(bot: Bot, event: GroupMessageEvent, state: T_State):
             await clanbattle_qq.rename_clan_uname.finish("您不是会战管理员，无权修改他人昵称")
         uid = state['_matched_groups'][2]
     uname = state['_matched_groups'][0]
-    if clan.rename_user_uname(uid,uname):
+    if clan.rename_user_uname(uid, uname):
         await clanbattle_qq.remove_clan_member.finish("修改昵称成功")
     else:
         await clanbattle_qq.remove_clan_member.finish("修改昵称失败，可能用户还没加入任何公会？")
 
+
 @clanbattle_qq.help.handle()
-async def send_bot_help(bot: Bot, event: GroupMessageEvent, state: T_State):
-    await clanbattle_qq.help.finish("会战帮助请见https://yukiclanbattle.shikeschedule.cn/help")
+async def send_bot_help(bot: Bot, event: MessageEvent, state: T_State):
+    if isinstance(event,GroupMessageEvent) or isinstance(PrivateMessageEvent):
+        await clanbattle_qq.help.finish("Yuki Clanbattle Ver0.1.1\n会战帮助请见https://yukiclanbattle.shikeschedule.cn/help")
 
 
 @clanbattle_qq.webview.handle()
-async def send_webview(bot: Bot, event: GroupMessageEvent, state: T_State):
-    await clanbattle_qq.webview.finish("登陆https://yukiclanbattle.shikeschedule.cn/clan查看详情")
+async def send_webview(bot: Bot, event: MessageEvent, state: T_State):
+    if isinstance(event,GroupMessageEvent) or isinstance(PrivateMessageEvent):
+        await clanbattle_qq.webview.finish("登陆https://yukiclanbattle.shikeschedule.cn/clan查看详情")

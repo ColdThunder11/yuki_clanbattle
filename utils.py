@@ -35,8 +35,9 @@ boss_info = {
         'tw': [
             [6000000, 8000000, 10000000, 12000000, 15000000],
             [6000000, 8000000, 10000000, 12000000, 15000000],
-            [7000000, 9000000, 13000000, 15000000, 20000000],
-            [15000000, 16000000, 18000000, 19000000, 20000000]
+            [10000000, 11000000, 16000000, 18000000, 22000000],
+            [18000000, 19000000, 22000000, 23000000, 16000000],
+            [95000000, 90000000, 95000000, 120000000, 130000000]
         ],
         'cn': [
             [6000000, 8000000, 10000000, 12000000, 20000000],
@@ -46,7 +47,7 @@ boss_info = {
     },
     'cycle': {
         'jp': [1, 4, 11, 31, 41],
-        'tw': [1, 4, 11, 35],
+        'tw': [1, 4, 11, 31, 41],
         'cn': [1, 4, 11]
     }
 }
@@ -80,15 +81,15 @@ class TodayBattleStatus:
     uid: str
     today_challenged: int
     addition_challeng: int
-    next_is_addition_challeng: bool
+    remain_addition_challeng: int
     last_is_addition: bool
     use_sl: bool
 
-    def __init__(self, uid: str, today_challenged: int, addition_challeng: int, next_is_addition_challeng: bool, last_is_addition: bool, use_sl: bool) -> None:
+    def __init__(self, uid: str, today_challenged: int, addition_challeng: int, remain_addition_challeng: int, last_is_addition: bool, use_sl: bool) -> None:
         self.uid = uid
         self.today_challenged = today_challenged
         self.addition_challeng = addition_challeng
-        self.next_is_addition_challeng = next_is_addition_challeng
+        self.remain_addition_challeng = remain_addition_challeng
         self.last_is_addition = last_is_addition
         self.use_sl = use_sl
 
@@ -99,6 +100,7 @@ class CommitRecordResult(Enum):
     damage_out_of_hp = 2
     check_record_legal_failed = 3
     member_not_in_clan = 4
+
 
 
 class CommitInProgressResult(Enum):
@@ -113,6 +115,7 @@ class CommitSubscribeResult(Enum):
     boss_cycle_already_killed = 1
     already_in_progress = 2
     member_not_in_clan = 3
+    already_subscribed = 4
 
 
 class CommitBattlrOnTreeResult(Enum):
@@ -127,6 +130,7 @@ class CommitSLResult(Enum):
     success = 0
     already_sl = 1
     member_not_in_clan = 2
+    illegal_target_boss = 3
 
 
 class ClanBattleData:
@@ -160,6 +164,11 @@ class ClanBattleData:
         return user_list[0] if user_list else None
 
     @staticmethod
+    def get_user_name(uid: str) -> User:
+        user_list = User.select().where(User.qq_uid == uid)
+        return user_list[0].uname if user_list else None
+
+    @staticmethod
     def rename_user_uname(uid: str, uname: str) -> bool:
         user = ClanBattleData.get_user_info(uid)
         if not user:
@@ -167,7 +176,6 @@ class ClanBattleData:
         user.uname = uname
         user.save()
         return True
-
 
     def get_today_datetime(self) -> Tuple[datetime.datetime, datetime.datetime]:
         start_time = None
@@ -197,6 +205,9 @@ class ClanBattleData:
             ret_list.append(member_info)
         return ret_list
 
+    def get_current_clanbattle_data(self) -> int:
+        return self.clan_info.current_using_data_num
+
     def set_clan_members(self, members: List[str]):
         self.clan_info.clan_members = self.get_db_strlist_str(members)
         self.clan_info.save()
@@ -207,6 +218,10 @@ class ClanBattleData:
 
     def set_using_data_num(self, num: int):
         self.clan_info.current_using_data_num = num
+        self.clan_info.save()
+
+    def set_current_clanbattle_data(self, data_num: int):
+        self.clan_info.current_using_data_num = data_num
         self.clan_info.save()
 
     def rename_clan(self, name: str):
@@ -244,7 +259,7 @@ class ClanBattleData:
         user.clan_joined = self.get_db_strlist_str(joined_clan)
         user.save()
         members = self.get_clan_members()
-        members.remove(self.clan_info.clan_gid)
+        members.remove(uid)
         self.set_clan_members(members)
         return True
 
@@ -402,22 +417,22 @@ class ClanBattleData:
         today_record = self.get_today_record(uid)
         total_challenge = 0
         addition_challeng = 0
+        remain_addition_challeng = 0
         is_exta_time = False
-        remain_next_chance = False
         is_sl = True if self.get_today_battle_sl(uid=uid) else False
         if not today_record or len(today_record) == 0:
-            return TodayBattleStatus(uid, 0, 0, False, False, is_sl)
+            return TodayBattleStatus(uid, 0, 0, 0, False, is_sl)
         for record in today_record:
+            if record.remain_next_chance:
+                remain_addition_challeng += 1
             if not record.is_extra_time:
                 total_challenge += 1
             else:
                 addition_challeng += 1
+                remain_addition_challeng -= 1
         if today_record[len(today_record)-1].is_extra_time:
             is_exta_time = True
-        if today_record[len(today_record)-1].remain_next_chance:
-            remain_next_chance = True
-        return TodayBattleStatus(uid, total_challenge, addition_challeng, remain_next_chance, is_exta_time, is_sl)
-        return (total_challenge, is_exta_time, remain_next_chance)
+        return TodayBattleStatus(uid, total_challenge, addition_challeng, remain_addition_challeng, is_exta_time, is_sl)
 
     # 完整刀 补偿刀
     def get_today_record_status_total(self) -> Tuple[int, int]:
@@ -559,7 +574,7 @@ class ClanBattleData:
             return True
         return False
 
-    async def commit_record(self, uid: str, target_boss: int, damage: str, comment: str, proxy_report_uid: str = None) -> CommitRecordResult:
+    async def commit_record(self, uid: str, target_boss: int, damage: str, comment: str, proxy_report_uid: str = None, force_use_full_chance: bool = False) -> CommitRecordResult:
         damage_num = 0
         try:
             if damage.endswith(("E", "e")):
@@ -585,7 +600,7 @@ class ClanBattleData:
             return CommitRecordResult.check_record_legal_failed
         if not self.check_joined_clan(uid):
             return CommitRecordResult.member_not_in_clan
-        if record_status.next_is_addition_challeng:
+        if record_status.remain_addition_challeng > 0 and not force_use_full_chance:
             self.create_new_record(uid, boss.target_cycle,
                                    target_boss, damage_num, boss.boss_hp, comment, True, False, proxy_report_uid)
         elif damage_num == boss.boss_hp:
@@ -615,7 +630,7 @@ class ClanBattleData:
             uid, boss.target_cycle, target_boss, comment)
         return CommitInProgressResult.success
 
-    def commit_batle_subscribe(self, uid: str, target_boss: int, comment: str, target_cycle: int = None) -> CommitSubscribeResult:
+    def commit_batle_subscribe(self, uid: str, target_boss: int,target_cycle: int = None, comment: str = None) -> CommitSubscribeResult:
         boss_status = self.get_current_boss_state()
         boss = boss_status[target_boss-1]
         if not target_cycle:
@@ -624,10 +639,11 @@ class ClanBattleData:
             cycle = target_cycle
         if not self.check_joined_clan(uid):
             return CommitSubscribeResult.member_not_in_clan
-        if subs := self.get_battle_subscribe(uid, target_boss):
-            for sub in subs:
-                if sub.target_cycle == cycle:
-                    return CommitSubscribeResult.already_in_progress
+        if progress := self.get_battle_in_progress(uid):
+            if progress[0].target_boss == target_boss and progress[0].target_cycle == cycle:
+                return CommitSubscribeResult.already_in_progress
+        if self.get_battle_subscribe(uid, target_boss, cycle):
+            return CommitSubscribeResult.already_subscribed
         if cycle < boss.target_cycle:
             return CommitSubscribeResult.boss_cycle_already_killed
         self.create_new_battle_subscribe(
@@ -659,6 +675,8 @@ class ClanBattleData:
             return CommitSLResult.already_sl
         boss_status = self.get_current_boss_state()
         boss = boss_status[target_boss-1]
+        if not self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1):
+            return CommitSLResult.illegal_target_boss
         self.create_new_battle_sl(
             uid, boss.target_cycle, target_boss, comment, proxy_report_uid)
         return CommitSLResult.success
