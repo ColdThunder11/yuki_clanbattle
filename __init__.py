@@ -273,7 +273,7 @@ async def _(item: WebReportSubscribe, session: str = Cookie(None)):
     result = clan.commit_batle_subscribe(uid, challenge_boss, cycle, comment)
     bot: Bot = list(nonebot.get_bots().values())[0]
     if result == CommitSubscribeResult.success:
-        await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"开始挑战{challenge_boss}王")
+        await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"预约了{cycle}周目{challenge_boss}王")
         return{"err_code": 0}
     elif result == CommitSubscribeResult.already_in_progress:
         return{"err_code": 403, "msg": "您已经正在挑战这个boss了"}
@@ -914,11 +914,11 @@ async def rename_clan_uname(bot: Bot, event: GroupMessageEvent, state: T_State):
 
 @clanbattle_qq.help.handle()
 async def send_bot_help(bot: Bot, event: MessageEvent, state: T_State):
-    if isinstance(event,GroupMessageEvent) or isinstance(PrivateMessageEvent):
+    if isinstance(event,GroupMessageEvent) or isinstance(event,PrivateMessageEvent):
         await clanbattle_qq.help.finish("Yuki Clanbattle Ver0.1.1\n会战帮助请见https://yukiclanbattle.shikeschedule.cn/help")
 
 
 @clanbattle_qq.webview.handle()
 async def send_webview(bot: Bot, event: MessageEvent, state: T_State):
-    if isinstance(event,GroupMessageEvent) or isinstance(PrivateMessageEvent):
+    if isinstance(event,GroupMessageEvent) or isinstance(event,PrivateMessageEvent):
         await clanbattle_qq.webview.finish("登陆https://yukiclanbattle.shikeschedule.cn/clan查看详情")

@@ -388,7 +388,7 @@ class ClanBattleData:
                             is_extra_time=is_extra_time, remain_next_chance=remain_next_chance, proxy_report_uid=proxy_report_uid)
 
     def delete_recent_record(self, uid: str) -> bool:
-        record = self.get_clan_recent_record()
+        record = self.get_recent_record()
         if not record:
             return False
         if record[0].member_uid == uid:
