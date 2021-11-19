@@ -107,8 +107,8 @@ class BattleSL(BaseModel):
     member_uid = CharField()
     record_time = DateTimeField()
     using_data_num = IntegerField()
-    target_cycle = IntegerField()
-    target_boss = IntegerField()
+    target_cycle = IntegerField(null=True)
+    target_boss = IntegerField(null=True)
     comment = TextField(null=True)
     proxy_report_uid = CharField(null=True)
     class Meta:

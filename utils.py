@@ -1,12 +1,13 @@
 from re import I, T
 from peewee import *
-from collections import UserList
+from collections import UserList, defaultdict
 from copy import deepcopy
 from operator import add, sub
 from typing import Dict, List
 import datetime
 import nonebot
 from enum import Enum
+from functools import wraps
 
 from nonebot.adapters.cqhttp.bot import Bot
 from fastapi.routing import serialize_response
@@ -15,7 +16,7 @@ from nonebot.exception import NoLogException
 from peewee import _BoundModelsContext
 from pkg_resources import set_extraction_path
 from .db import User, ClanInfo, BattleOnTree, BattleRecord, BattleInProgress, BattleSL, BattleSubscribe
-from .exception import ClanBattleExceptin
+from .exception import ClanBattleException, ClanBattleDamageParseException
 from typing import Any, List, Union, Optional, Tuple
 import json
 import uuid
@@ -36,8 +37,8 @@ boss_info = {
             [6000000, 8000000, 10000000, 12000000, 15000000],
             [6000000, 8000000, 10000000, 12000000, 15000000],
             [10000000, 11000000, 16000000, 18000000, 22000000],
-            [18000000, 19000000, 22000000, 23000000, 16000000],
-            [95000000, 90000000, 95000000, 120000000, 130000000]
+            [18000000, 19000000, 22000000, 23000000, 26000000],
+            [85000000, 90000000, 95000000, 100000000, 110000000]
         ],
         'cn': [
             [6000000, 8000000, 10000000, 12000000, 20000000],
@@ -102,7 +103,6 @@ class CommitRecordResult(Enum):
     member_not_in_clan = 4
 
 
-
 class CommitInProgressResult(Enum):
     success = 0
     illegal_target_boss = 1
@@ -135,11 +135,41 @@ class CommitSLResult(Enum):
 
 class ClanBattleData:
 
+    cache = {}
+
     def __init__(self, gid: str) -> None:
         clan: ClanInfo = ClanInfo.get(ClanInfo.clan_gid == gid)
         if not clan:
-            raise ClanBattleExceptin("公会不存在")
+            raise ClanBattleException("公会不存在")
         self.clan_info = clan
+
+    def cache_return(get_func):
+
+        @wraps(get_func)
+        def decorated(*args, **kwargs):
+            cache_key = str(args) + str(kwargs) + str(get_func)
+            cache_obj: dict = args[0].cache
+            cache_res = cache_obj.get(cache_key, "@*^")
+            if cache_res != "@*^":
+                #print("cache hit")
+                return cache_res
+            else:
+                result = get_func(*args, **kwargs)
+                cache_obj[cache_key] = result
+                #print("cache not hit")
+                return result
+
+        return decorated
+
+    def clear_cache(get_func):
+
+        @wraps(get_func)
+        def decorated(*args, **kwargs):
+            ret = get_func(*args, **kwargs)
+            args[0].cache = {}
+            return ret
+
+        return decorated
 
     @staticmethod
     def get_db_strlist_list(text_field: TextField) -> List[str]:
@@ -148,6 +178,25 @@ class ClanBattleData:
     @staticmethod
     def get_db_strlist_str(sql_list: List[str]) -> str:
         return "|".join(sql_list) if sql_list else None
+
+    @staticmethod
+    def parse_damage(damage_str: str) -> int:
+        try:
+            if damage_str.endswith(("E", "e")):
+                damage_num = int(float(damage_str[:-1]) * 100000000)
+            elif damage_str.endswith(("kw", "kW", "Kw", "KW")):
+                damage_num = int(float(damage_str[:-2]) * 10000000)
+            elif damage_str.endswith(("bw", "bW", "Bw", "BW")):
+                damage_num = int(float(damage_str[:-2]) * 1000000)
+            elif damage_str.endswith(("w", "W")):
+                damage_num = int(float(damage_str[:-1]) * 10000)
+            elif damage_str.endswith(("k", "K")):
+                damage_num = int(float(damage_str[:-1]) * 1000)
+            else:
+                damage_num = int(damage_str)
+            return damage_num
+        except:
+            raise ClanBattleDamageParseException()
 
     @staticmethod
     def create_clan(gid: str, clan_name: str, clan_type: int, clan_admin: List[str]):
@@ -193,9 +242,11 @@ class ClanBattleData:
             end_time = now_time_today + datetime.timedelta(hours=29) - detla
         return (start_time, end_time)
 
+    @cache_return
     def get_clan_members(self) -> List[str]:
         return self.get_db_strlist_list(self.clan_info.clan_members)
 
+    @cache_return
     def get_clan_members_with_info(self) -> List[MemberInfo]:
         member_list = self.get_db_strlist_list(self.clan_info.clan_members)
         ret_list = []
@@ -205,29 +256,55 @@ class ClanBattleData:
             ret_list.append(member_info)
         return ret_list
 
+    @cache_return
     def get_current_clanbattle_data(self) -> int:
         return self.clan_info.current_using_data_num
 
+    @clear_cache
     def set_clan_members(self, members: List[str]):
         self.clan_info.clan_members = self.get_db_strlist_str(members)
         self.clan_info.save()
 
+    @clear_cache
     def set_clan_name(self, clan_name: str):
         self.clan_info.clan_name = clan_name
         self.clan_info.save()
 
+    @clear_cache
     def set_using_data_num(self, num: int):
         self.clan_info.current_using_data_num = num
         self.clan_info.save()
 
+    @clear_cache
     def set_current_clanbattle_data(self, data_num: int):
         self.clan_info.current_using_data_num = data_num
         self.clan_info.save()
 
+    @clear_cache
+    def clear_current_clanbattle_data(self):
+        clan_record = self.get_record()
+        for record in clan_record:
+            record.delete_instance()
+        clan_in_progress = self.get_battle_in_progress()
+        for in_progress in clan_in_progress:
+            in_progress.delete_instance()
+        clan_sl = BattleSL.select().where((BattleSL.clan_gid == self.clan_info.clan_gid)
+                                          & (BattleSL.using_data_num == self.clan_info.current_using_data_num))
+        for sl in clan_sl:
+            sl.delete_instance()
+        clan_battle_subscribe = self.get_battle_subscribe()
+        for battle_subscribe in clan_battle_subscribe:
+            battle_subscribe.delete_instance()
+        battle_on_tree = self.get_battle_on_tree()
+        for on_tree in battle_on_tree:
+            on_tree.delete_instance()
+
+    @clear_cache
     def rename_clan(self, name: str):
         self.clan_info.clan_name = name
         self.clan_info.save()
 
+    @clear_cache
     def add_clan_member(self, uid: str, name: str) -> bool:
         if not self.get_user_info(uid):
             User.create(qq_uid=uid, uname=name,
@@ -249,6 +326,7 @@ class ClanBattleData:
             self.set_clan_members(members)
             return True
 
+    @clear_cache
     def delete_clan_member(self, uid: str) -> bool:
         if not (user := self.get_user_info(uid)):
             return False
@@ -263,18 +341,23 @@ class ClanBattleData:
         self.set_clan_members(members)
         return True
 
+    @clear_cache
     def refresh_clan_admin(self, admins: List[str]):
         clan = self.clan_info
         clan.clan_admin = self.get_db_strlist_str(admins)
         clan.save()
 
+    @cache_return
     def check_joined_clan(self, uid: str) -> bool:
         user = self.get_user_info(uid)
+        if not user:
+            return False
         db_list = self.get_db_strlist_list(user.clan_joined)
-        if not user or not self.clan_info.clan_gid in self.get_db_strlist_list(user.clan_joined):
+        if not user or not self.clan_info.clan_gid in db_list:
             return False
         return True
 
+    @cache_return
     def get_record(self, uid: str = None, boss: int = None, cycle: int = None, start_time: datetime.datetime = None, end_time: datetime.datetime = None, num: int = None, time_desc: bool = False) -> List[BattleRecord]:
         res = BattleRecord.select().where((BattleRecord.clan_gid == self.clan_info.clan_gid)
                                           & (BattleRecord.using_data_num == self.clan_info.current_using_data_num))
@@ -302,9 +385,11 @@ class ClanBattleData:
         end_time = today_time[1]
         return self.get_record(uid, boss, cycle, start_time, end_time, num)
 
+    @cache_return
     def get_recent_record(self, uid: str = None, boss: int = None, num: int = 1) -> List[BattleRecord]:
         return self.get_record(uid=uid, boss=boss, num=num, time_desc=True)
 
+    @cache_return
     def get_battle_in_progress(self, uid: str = None, boss: int = None) -> List[BattleInProgress]:
         progresses = BattleInProgress.select().where((BattleInProgress.clan_gid == self.clan_info.clan_gid) & (
             BattleInProgress.using_data_num == self.clan_info.current_using_data_num))
@@ -318,6 +403,7 @@ class ClanBattleData:
             ret_list.append(progress)
         return ret_list
 
+    @cache_return
     def get_battle_subscribe(self, uid: str = None, boss: int = None, boss_cycle: int = None) -> List[BattleSubscribe]:
         subscribes = BattleSubscribe.select().where((BattleSubscribe.clan_gid == self.clan_info.clan_gid) & (
             BattleSubscribe.using_data_num == self.clan_info.current_using_data_num))
@@ -334,6 +420,7 @@ class ClanBattleData:
             ret_list.append(subscribe)
         return ret_list
 
+    @cache_return
     def get_battle_on_tree(self, uid: str = None, boss: int = None) -> List[BattleOnTree]:
         progresses = BattleOnTree.select().where((BattleOnTree.clan_gid == self.clan_info.clan_gid) & (
             BattleOnTree.using_data_num == self.clan_info.current_using_data_num))
@@ -346,10 +433,10 @@ class ClanBattleData:
             ret_list.append(progress)
         return ret_list
 
-    def get_today_battle_sl(self, uid: str = None, boss: int = None, boss_cycle: int = None) -> List[BattleSL]:
-        today_time = self.get_today_datetime()
+    @cache_return
+    def get_battle_sl(self, uid: str = None, boss: int = None, boss_cycle: int = None, start_time: datetime.datetime = None, end_time: datetime.datetime = None) -> List[BattleSL]:
         sls = BattleSL.select().where((BattleSL.clan_gid == self.clan_info.clan_gid) & (
-            BattleSL.using_data_num == self.clan_info.current_using_data_num) & (BattleSL.record_time > today_time[0]) & (BattleSL.record_time < today_time[1]))
+            BattleSL.using_data_num == self.clan_info.current_using_data_num) & (BattleSL.record_time > start_time) & (BattleSL.record_time < end_time))
         if uid:
             sls = sls.where((BattleSL.member_uid == uid))
         if boss:
@@ -361,42 +448,51 @@ class ClanBattleData:
             ret_list.append(sl)
         return ret_list
 
+    def get_today_battle_sl(self, uid: str = None, boss: int = None, boss_cycle: int = None) -> List[BattleSL]:
+        today_time = self.get_today_datetime()
+        return self.get_battle_sl(uid, boss, boss_cycle, today_time[0], today_time[1])
+
+    @clear_cache
     def create_new_battle_subscribe(self, uid: str, target_cycle: int, target_boss: int, comment: str):
         BattleSubscribe.create(clan_gid=self.clan_info.clan_gid, member_uid=uid, record_time=datetime.datetime.utcnow(),
                                target_cycle=target_cycle, target_boss=target_boss,
                                using_data_num=self.clan_info.current_using_data_num, comment=comment)
 
+    @clear_cache
     def create_new_battle_in_progress(self, uid: str, target_cycle: int, target_boss: int, comment: str):
         BattleInProgress.create(clan_gid=self.clan_info.clan_gid, member_uid=uid, record_time=datetime.datetime.utcnow(),
                                 target_cycle=target_cycle, target_boss=target_boss,
                                 using_data_num=self.clan_info.current_using_data_num, comment=comment)
 
+    @clear_cache
     def create_new_battle_on_tree(self, uid: str, target_cycle: int, target_boss: int, comment: str):
         BattleOnTree.create(clan_gid=self.clan_info.clan_gid, member_uid=uid, record_time=datetime.datetime.utcnow(),
                             target_cycle=target_cycle, target_boss=target_boss,
                             using_data_num=self.clan_info.current_using_data_num, comment=comment)
 
+    @clear_cache
     def create_new_battle_sl(self, uid: str, target_cycle: int, target_boss: int, comment: str, proxy_report_uid: str):
         BattleSL.create(clan_gid=self.clan_info.clan_gid, member_uid=uid, record_time=datetime.datetime.utcnow(),
                         using_data_num=self.clan_info.current_using_data_num, comment=comment,
                         target_cycle=target_cycle, target_boss=target_boss,
                         proxy_report_uid=proxy_report_uid)
 
+    @clear_cache
     def create_new_record(self, uid: str, target_cycle: int, target_boss: int, damage: int, boss_hp: int, comment: str, is_extra_time: bool, remain_next_chance: bool, proxy_report_uid: str):
         BattleRecord.create(clan_gid=self.clan_info.clan_gid, member_uid=uid, record_time=datetime.datetime.utcnow(),
                             target_cycle=target_cycle, target_boss=target_boss, using_data_num=self.clan_info.current_using_data_num, damage=damage, boss_hp=boss_hp, comment=comment,
                             is_extra_time=is_extra_time, remain_next_chance=remain_next_chance, proxy_report_uid=proxy_report_uid)
 
+    @clear_cache
     def delete_recent_record(self, uid: str) -> bool:
-        record = self.get_recent_record()
+        record = self.get_recent_record(uid=uid)
         if not record:
             return False
-        if record[0].member_uid == uid:
+        else:
             record[0].delete_instance()
             return True
-        else:
-            return False
 
+    @clear_cache
     def delete_battle_in_progress(self, uid: str) -> bool:
         progress = self.get_battle_in_progress(uid)
         if not progress:
@@ -405,6 +501,7 @@ class ClanBattleData:
             proc.delete_instance()
         return True
 
+    @clear_cache
     def delete_battle_subscribe(self, uid: str, boss: int, cycle: int = None) -> bool:
         subs = self.get_battle_subscribe(uid, boss, cycle)
         if not subs:
@@ -413,16 +510,21 @@ class ClanBattleData:
             sub.delete_instance()
         return True
 
-    def get_today_record_status(self, uid: str) -> TodayBattleStatus:
-        today_record = self.get_today_record(uid)
+    def get_record_status(self, uid: str, start_time: datetime.datetime = None, end_time: datetime.datetime = None) -> TodayBattleStatus:
+        records = self.get_record(uid=uid, start_time=start_time, end_time=end_time) if (
+            start_time and end_time) else self.get_today_record(uid)
         total_challenge = 0
         addition_challeng = 0
         remain_addition_challeng = 0
         is_exta_time = False
-        is_sl = True if self.get_today_battle_sl(uid=uid) else False
-        if not today_record or len(today_record) == 0:
+        if start_time and end_time:
+            is_sl = True if self.get_battle_sl(
+                uid=uid, start_time=start_time, end_time=end_time) else False
+        else:
+            is_sl = True if self.get_today_battle_sl(uid=uid) else False
+        if not records or len(records) == 0:
             return TodayBattleStatus(uid, 0, 0, 0, False, is_sl)
-        for record in today_record:
+        for record in records:
             if record.remain_next_chance:
                 remain_addition_challeng += 1
             if not record.is_extra_time:
@@ -430,9 +532,12 @@ class ClanBattleData:
             else:
                 addition_challeng += 1
                 remain_addition_challeng -= 1
-        if today_record[len(today_record)-1].is_extra_time:
+        if records[len(records)-1].is_extra_time:
             is_exta_time = True
         return TodayBattleStatus(uid, total_challenge, addition_challeng, remain_addition_challeng, is_exta_time, is_sl)
+
+    def get_today_record_status(self, uid: str) -> TodayBattleStatus:
+        return self.get_record_status(uid)
 
     # 完整刀 补偿刀
     def get_today_record_status_total(self) -> Tuple[int, int]:
@@ -450,19 +555,24 @@ class ClanBattleData:
                 next_chance_challenge -= 1
         return(total_challenge, next_chance_challenge)
 
+    @cache_return
     def check_admin_permission(self, uid: str) -> bool:
         admins = self.get_db_strlist_list(self.clan_info.clan_admin)
         if uid in admins:
             return True
         return False
 
+    @cache_return
     def get_cycle_stage(self, cycle: int) -> int:
+        max_cycle = len(boss_info["cycle"][self.clan_info.clan_type])
         for i in range(len(boss_info["cycle"][self.clan_info.clan_type])):
-            if len(boss_info["cycle"][self.clan_info.clan_type])-1 != i and boss_info["cycle"][self.clan_info.clan_type][i] >= cycle and boss_info["cycle"][self.clan_info.clan_type][i+1] < cycle:
+            if max_cycle - 1 == i and cycle >= boss_info["cycle"][self.clan_info.clan_type][i]:
                 return i+1
-            elif boss_info["cycle"][self.clan_info.clan_type][i] >= cycle:
+            elif max_cycle != i and cycle >= boss_info["cycle"][self.clan_info.clan_type][i] and cycle < boss_info["cycle"][self.clan_info.clan_type][i+1]:
                 return i+1
+        raise ClanBattleException("cycle error")
 
+    @cache_return
     def get_current_boss_state(self) -> List[BossStatus]:
         ret_list = []
         for i in range(1, 6):
@@ -487,18 +597,26 @@ class ClanBattleData:
                         result.target_boss, boss_cycle, boss_stage, result.boss_hp-result.damage, boss_info["boss"][self.clan_info.clan_type][boss_stage-1][result.target_boss-1]))
         return ret_list
 
-    async def boss_kill_process(self, uid: str, boss: int):
+    async def boss_kill_process(self, uid: str, boss: int, proxy_report_uid: str):
         bot: Bot = list(nonebot.get_bots().values())[0]
         gid = self.clan_info.clan_gid
         current_boss_status = self.get_current_boss_state()
         on_tree_list = self.get_battle_on_tree(boss=boss)
         battle_subscribe_list = self.get_battle_subscribe(boss=boss)
         battle_in_progress_list = self.get_battle_in_progress(boss=boss)
+        current_max_challenge_cycle = self.get_max_challenge_boss_cycle(
+            current_boss_status)
+        current_boss_status[boss-1].target_cycle -= 1
+        previous_max_challenge_cycle = self.get_max_challenge_boss_cycle(
+            current_boss_status)
+        current_boss_status[boss-1].target_cycle += 1
+        no_report_uid_list = (uid, proxy_report_uid)
         # 处理挂树
         if on_tree_list:
             msg = Message("下树啦")
             for on_tree in on_tree_list:
-                msg += MessageSegment.at(on_tree.member_uid)
+                if not on_tree.member_uid in no_report_uid_list:
+                    msg += MessageSegment.at(on_tree.member_uid)
                 on_tree.delete_instance()
             try:
                 await bot.send_group_msg(group_id=gid, message=msg)
@@ -509,12 +627,12 @@ class ClanBattleData:
         if battle_subscribe_list:
             for battle_subscribe in battle_subscribe_list:
                 if battle_subscribe.target_cycle == current_boss_status[boss-1].target_cycle - 1:
-                    if battle_subscribe.member_uid != uid:
+                    if not battle_subscribe.member_uid in no_report_uid_list:
                         msg += MessageSegment.at(battle_subscribe.member_uid)
                     battle_subscribe.delete_instance()
         if battle_in_progress_list:
             for battle_in_progress in battle_in_progress_list:
-                if battle_in_progress.member_uid != uid:
+                if not battle_in_progress.member_uid in no_report_uid_list:
                     msg += MessageSegment.at(battle_in_progress.member_uid)
                 battle_in_progress.delete_instance()
         if len(msg) > 1:
@@ -523,19 +641,18 @@ class ClanBattleData:
             except:
                 pass
         # 处理可以出刀提醒
-        current_max_challenge_cycle = self.get_max_challenge_boss_cycle(
-            current_boss_status)
-        current_boss_status[boss-1].target_cycle -= 1
-        previous_max_challenge_cycle = self.get_max_challenge_boss_cycle(
-            current_boss_status)
-        current_boss_status[boss-1].target_cycle += 1
         if current_max_challenge_cycle > previous_max_challenge_cycle:
             msg = Message("现在可以出刀了")
+            processed_uids = []
             for boss_state in current_boss_status:
                 if boss_state.target_cycle == current_max_challenge_cycle:
                     if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
                         for sub_record in sub_records:
-                            msg += MessageSegment.at(sub_record.member_uid)
+                            if not str(sub_record.member_uid) in processed_uids:
+                                processed_uids.append(
+                                    str(sub_record.member_uid))
+                                msg += MessageSegment.at(
+                                    str(sub_record.member_uid))
             if len(msg) > 1:
                 try:
                     await bot.send_group_msg(group_id=gid, message=msg)
@@ -555,6 +672,8 @@ class ClanBattleData:
         if current_max_cycle - current_min_cycle == 2:
             return current_max_cycle - 1
         elif current_max_cycle - current_min_cycle == 1:
+            if next_stage == len(boss_info["cycle"][self.clan_info.clan_type]) + 1:
+                return current_max_cycle
             if current_max_cycle == boss_info["cycle"][self.clan_info.clan_type][next_stage - 1]:
                 return current_min_cycle
             else:
@@ -577,19 +696,8 @@ class ClanBattleData:
     async def commit_record(self, uid: str, target_boss: int, damage: str, comment: str, proxy_report_uid: str = None, force_use_full_chance: bool = False) -> CommitRecordResult:
         damage_num = 0
         try:
-            if damage.endswith(("E", "e")):
-                damage_num = int(float(damage[:-1]) * 100000000)
-            elif damage.endswith(("kw", "kW", "Kw", "KW")):
-                damage_num = int(float(damage[:-2]) * 10000000)
-            elif damage.endswith(("bw", "bW", "Bw", "BW")):
-                damage_num = int(float(damage[:-2]) * 1000000)
-            elif damage.endswith(("w", "W")):
-                damage_num = int(float(damage[:-1]) * 10000)
-            elif damage.endswith(("k", "K")):
-                damage_num = int(float(damage[:-1]) * 1000)
-            else:
-                damage_num = int(damage)
-        except:
+            damage_num = self.parse_damage(damage)
+        except ClanBattleDamageParseException:
             return CommitRecordResult.illegal_damage_inpiut
         boss_status = self.get_current_boss_state()
         boss = boss_status[target_boss-1]
@@ -600,6 +708,12 @@ class ClanBattleData:
             return CommitRecordResult.check_record_legal_failed
         if not self.check_joined_clan(uid):
             return CommitRecordResult.member_not_in_clan
+        if on_tree := self.get_battle_on_tree(uid=uid):
+            on_tree[0].delete_instance()
+        if on_sub := self.get_battle_subscribe(uid=uid, boss=target_boss, boss_cycle=boss.target_cycle):
+            on_sub[0].delete_instance()
+        if in_progress := self.get_battle_in_progress(uid, target_boss):
+            in_progress[0].delete_instance()
         if record_status.remain_addition_challeng > 0 and not force_use_full_chance:
             self.create_new_record(uid, boss.target_cycle,
                                    target_boss, damage_num, boss.boss_hp, comment, True, False, proxy_report_uid)
@@ -610,7 +724,7 @@ class ClanBattleData:
             self.create_new_record(uid, boss.target_cycle,
                                    target_boss, damage_num, boss.boss_hp, comment, False, False, proxy_report_uid)
         if damage_num == boss.boss_hp:
-            await self.boss_kill_process(uid, target_boss)
+            await self.boss_kill_process(uid, target_boss, proxy_report_uid)
         return CommitRecordResult.success
 
     def commit_battle_in_progress(self, uid: str, target_boss: int, comment: str) -> CommitInProgressResult:
@@ -620,17 +734,15 @@ class ClanBattleData:
             return CommitInProgressResult.illegal_target_boss
         if not self.check_joined_clan(uid):
             return CommitInProgressResult.member_not_in_clan
-        if self.get_battle_in_progress(uid):
+        if in_proc := self.get_battle_in_progress(uid):
             return CommitInProgressResult.already_in_battle
-        if subs := self.get_battle_subscribe(uid, target_boss):
-            for sub in subs:
-                if sub.target_cycle == boss.target_cycle:
-                    sub.delete_instance()
+        if sub := self.get_battle_subscribe(uid, target_boss, boss.target_cycle):
+            sub[0].delete_instance()
         self.create_new_battle_in_progress(
             uid, boss.target_cycle, target_boss, comment)
         return CommitInProgressResult.success
 
-    def commit_batle_subscribe(self, uid: str, target_boss: int,target_cycle: int = None, comment: str = None) -> CommitSubscribeResult:
+    def commit_batle_subscribe(self, uid: str, target_boss: int, target_cycle: int = None, comment: str = None) -> CommitSubscribeResult:
         boss_status = self.get_current_boss_state()
         boss = boss_status[target_boss-1]
         if not target_cycle:
@@ -639,9 +751,8 @@ class ClanBattleData:
             cycle = target_cycle
         if not self.check_joined_clan(uid):
             return CommitSubscribeResult.member_not_in_clan
-        if progress := self.get_battle_in_progress(uid):
-            if progress[0].target_boss == target_boss and progress[0].target_cycle == cycle:
-                return CommitSubscribeResult.already_in_progress
+        if self.get_battle_in_progress(uid, target_boss):
+            return CommitSubscribeResult.already_in_progress
         if self.get_battle_subscribe(uid, target_boss, cycle):
             return CommitSubscribeResult.already_subscribed
         if cycle < boss.target_cycle:
@@ -655,31 +766,45 @@ class ClanBattleData:
         boss = boss_status[target_boss-1]
         if not self.check_joined_clan(uid):
             return CommitBattlrOnTreeResult.member_not_in_clan
-        if progress := self.get_battle_in_progress(uid):
-            if progress[0].target_boss != target_boss:
-                return CommitBattlrOnTreeResult.already_in_other_boss_progress
-            elif progress[0].target_boss == target_boss:
-                progress[0].delete_instance()
         if not self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1):
             return CommitBattlrOnTreeResult.illegal_target_boss
         if self.get_battle_on_tree(uid):
             return CommitBattlrOnTreeResult.already_on_tree
+        if sub := self.get_battle_subscribe(uid, target_boss, boss.target_cycle):
+            sub[0].delete_instance()
+        if in_progress := self.get_battle_in_progress(uid, target_boss):
+            in_progress[0].delete_instance()
         self.create_new_battle_on_tree(
             uid, boss.target_cycle, target_boss, comment)
         return CommitBattlrOnTreeResult.success
 
-    def commit_battle_sl(self, uid: str,  target_boss: int, comment: str, proxy_report_uid: str = None) -> CommitSLResult:
+    def commit_battle_sl(self, uid: str,  target_boss: int = None, comment: str = None, proxy_report_uid: str = None) -> CommitSLResult:
         if not self.check_joined_clan(uid):
             return CommitSLResult.member_not_in_clan
         if self.get_today_battle_sl(uid):
             return CommitSLResult.already_sl
-        boss_status = self.get_current_boss_state()
-        boss = boss_status[target_boss-1]
-        if not self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1):
-            return CommitSLResult.illegal_target_boss
-        self.create_new_battle_sl(
-            uid, boss.target_cycle, target_boss, comment, proxy_report_uid)
+        if target_boss:
+            boss_status = self.get_current_boss_state()
+            boss = boss_status[target_boss-1]
+            if not self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1):
+                return CommitSLResult.illegal_target_boss
+            if on_tree := self.get_battle_on_tree(uid=uid):
+                on_tree[0].delete_instance()
+            self.create_new_battle_sl(
+                uid, boss.target_cycle, target_boss, comment, proxy_report_uid)
+        else:
+            self.create_new_battle_sl(
+                uid, None, None, comment, proxy_report_uid)
         return CommitSLResult.success
+
+    def commit_force_change_boss_status(self, target_boss: int, target_cycle: int, target_hp: str) -> bool:
+        try:
+            boss_hp = self.parse_damage(target_hp)
+        except ClanBattleDamageParseException:
+            return False
+        self.create_new_record("admin", target_cycle, target_boss,
+                               0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
+        return True
 
 
 class ClanBattle:
