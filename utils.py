@@ -9,9 +9,9 @@ import nonebot
 from enum import Enum
 from functools import wraps
 
-from nonebot.adapters.cqhttp.bot import Bot
+from nonebot.adapters.onebot.v11 import Bot
 from fastapi.routing import serialize_response
-from nonebot.adapters.cqhttp.message import Message, MessageSegment
+from nonebot.adapters.onebot.v11 import Message, MessageSegment
 from nonebot.exception import NoLogException
 from peewee import _BoundModelsContext
 from pkg_resources import set_extraction_path
@@ -36,8 +36,8 @@ boss_info = {
         'tw': [
             [6000000, 8000000, 10000000, 12000000, 15000000],
             [6000000, 8000000, 10000000, 12000000, 15000000],
-            [10000000, 11000000, 16000000, 18000000, 22000000],
-            [18000000, 19000000, 22000000, 23000000, 26000000],
+            [12000000, 14000000, 17000000, 19000000, 22000000],
+            [19000000, 20000000, 23000000, 25000000, 27000000],
             [85000000, 90000000, 95000000, 100000000, 110000000]
         ],
         'cn': [
@@ -147,6 +147,7 @@ class ClanBattleData:
 
         @wraps(get_func)
         def decorated(*args, **kwargs):
+            return get_func(*args, **kwargs)
             cache_key = str(args) + str(kwargs) + str(get_func)
             cache_obj: dict = args[0].cache
             cache_res = cache_obj.get(cache_key, "@*^")
@@ -510,6 +511,27 @@ class ClanBattleData:
             sub.delete_instance()
         return True
 
+    @clear_cache
+    def update_battle_in_progress_record(self, uid: str, comment: str) ->bool:
+        progress = self.get_battle_in_progress(uid)
+        if not progress:
+            return False
+        for proc in progress:
+            proc.comment = comment
+            proc.save()
+        return True
+
+    @clear_cache
+    def update_on_tree_record(self, uid: str, comment: str) ->bool:
+        on_treee_list = self.get_battle_on_tree(uid)
+        if not on_treee_list:
+            return False
+        for on_tree_item in on_treee_list:
+            on_tree_item.comment = comment
+            on_tree_item.save()
+        return True
+
+
     def get_record_status(self, uid: str, start_time: datetime.datetime = None, end_time: datetime.datetime = None) -> TodayBattleStatus:
         records = self.get_record(uid=uid, start_time=start_time, end_time=end_time) if (
             start_time and end_time) else self.get_today_record(uid)
@@ -547,6 +569,8 @@ class ClanBattleData:
         if not today_record or len(today_record) == 0:
             return(0, 0)
         for record in today_record:
+            if record.member_uid == "admin":
+                continue
             if not record.is_extra_time:
                 total_challenge += 1
             if record.remain_next_chance:
@@ -681,6 +705,13 @@ class ClanBattleData:
         else:
             return current_max_cycle
 
+    def check_boss_challengeable(self,target_cycle: int, target_boss: int):
+        boss_state = self.get_current_boss_state()
+        challenge_boss_state = boss_state[target_boss - 1]
+        if target_cycle <= self.get_max_challenge_boss_cycle(boss_state) and challenge_boss_state.target_cycle == target_cycle:
+            return True
+        return False
+
     def check_new_record_legal(self, uid: str, target_cycle: int, target_boss: int, damage: int) -> bool:
         boss_state = self.get_current_boss_state()
         challenge_boss_state = boss_state[target_boss - 1]
@@ -734,6 +765,8 @@ class ClanBattleData:
             return CommitInProgressResult.illegal_target_boss
         if not self.check_joined_clan(uid):
             return CommitInProgressResult.member_not_in_clan
+        if on_tree := self.get_battle_on_tree(uid):
+            return CommitInProgressResult.already_in_battle
         if in_proc := self.get_battle_in_progress(uid):
             return CommitInProgressResult.already_in_battle
         if sub := self.get_battle_subscribe(uid, target_boss, boss.target_cycle):
