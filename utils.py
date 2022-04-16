@@ -38,7 +38,7 @@ boss_info = {
             [6000000, 8000000, 10000000, 12000000, 15000000],
             [12000000, 14000000, 17000000, 19000000, 22000000],
             [19000000, 20000000, 23000000, 25000000, 27000000],
-            [85000000, 90000000, 95000000, 100000000, 110000000]
+            [95000000, 100000000, 110000000, 120000000, 130000000]
         ],
         'cn': [
             [6000000, 8000000, 10000000, 12000000, 20000000],
@@ -47,7 +47,7 @@ boss_info = {
         ]
     },
     'cycle': {
-        'jp': [1, 4, 11, 31, 41],
+        'jp': [1, 4, 11, 31, 39],
         'tw': [1, 4, 11, 31, 41],
         'cn': [1, 4, 11]
     }
@@ -200,7 +200,7 @@ class ClanBattleData:
             raise ClanBattleDamageParseException()
 
     @staticmethod
-    def create_clan(gid: str, clan_name: str, clan_type: int, clan_admin: List[str]):
+    def create_clan(gid: str, clan_name: str, clan_type: str, clan_admin: List[str]):
         ClanInfo.create(clan_gid=gid, clan_name=clan_name, create_time=datetime.datetime.utcnow(),
                         clan_type=clan_type, clan_admin=ClanBattleData.get_db_strlist_str(clan_admin))
 
@@ -512,7 +512,16 @@ class ClanBattleData:
         return True
 
     @clear_cache
-    def update_battle_in_progress_record(self, uid: str, comment: str) ->bool:
+    def delete_battle_on_tree(self, uid: str) -> bool:
+        on_tree = self.get_battle_on_tree(uid)
+        if not on_tree:
+            return False
+        for proc in on_tree:
+            proc.delete_instance()
+        return True
+
+    @clear_cache
+    def update_battle_in_progress_record(self, uid: str, comment: str) -> bool:
         progress = self.get_battle_in_progress(uid)
         if not progress:
             return False
@@ -522,7 +531,7 @@ class ClanBattleData:
         return True
 
     @clear_cache
-    def update_on_tree_record(self, uid: str, comment: str) ->bool:
+    def update_on_tree_record(self, uid: str, comment: str) -> bool:
         on_treee_list = self.get_battle_on_tree(uid)
         if not on_treee_list:
             return False
@@ -530,7 +539,6 @@ class ClanBattleData:
             on_tree_item.comment = comment
             on_tree_item.save()
         return True
-
 
     def get_record_status(self, uid: str, start_time: datetime.datetime = None, end_time: datetime.datetime = None) -> TodayBattleStatus:
         records = self.get_record(uid=uid, start_time=start_time, end_time=end_time) if (
@@ -705,7 +713,7 @@ class ClanBattleData:
         else:
             return current_max_cycle
 
-    def check_boss_challengeable(self,target_cycle: int, target_boss: int):
+    def check_boss_challengeable(self, target_cycle: int, target_boss: int):
         boss_state = self.get_current_boss_state()
         challenge_boss_state = boss_state[target_boss - 1]
         if target_cycle <= self.get_max_challenge_boss_cycle(boss_state) and challenge_boss_state.target_cycle == target_cycle:
@@ -862,7 +870,7 @@ class ClanBattle:
         else:
             return self.clan_data_dict[gid]
 
-    def create_clan(self, gid: str, clan_name: str, clan_type: int, clan_admin: List[str]):
+    def create_clan(self, gid: str, clan_name: str, clan_type: str, clan_admin: List[str]):
         ClanBattleData.create_clan(gid, clan_name, clan_type, clan_admin)
         self.get_clan_data(gid)
 
@@ -910,3 +918,36 @@ class WebAuth:
         if not WebAuth.check_password(uid, password):
             return (403, "")
         return (0, WebAuth.create_session(uid))
+
+
+class Tools:
+
+    @staticmethod
+    def get_chinese_timedetla(target_time: datetime.datetime) -> str:
+        now_time = datetime.datetime.utcnow()
+        time_detla = now_time - target_time
+        detla_seconds = time_detla.total_seconds()
+        current_seconds = detla_seconds
+        ret_text = ""
+        if current_seconds > 3600 * 24:
+            ret_text += f"{int(current_seconds // (3600 * 24))}天"
+            current_seconds %= (3600 * 24)
+        if current_seconds > 3600:
+            ret_text += f"{int(current_seconds // 3600)}小时"
+            current_seconds %= 3600
+        if current_seconds > 60:
+            ret_text += f"{int(current_seconds // 60)}分钟"
+            current_seconds %= 60
+        else:
+            ret_text += "0分钟"
+        #ret_text += f"{int(detla_seconds)}秒"
+        return ret_text
+
+    @staticmethod
+    def get_num_str_with_dot(num: int):
+        num_list = list(str(num))
+        index = len(str(num))
+        while(index > 3):
+            index -= 3
+            num_list.insert(index, ",")
+        return "".join(num_list)
