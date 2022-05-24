@@ -48,7 +48,7 @@ boss_info = {
     },
     'cycle': {
         'jp': [1, 4, 11, 31, 39],
-        'tw': [1, 4, 11, 31, 41],
+        'tw': [1, 4, 11, 31, 39],
         'cn': [1, 4, 11]
     }
 }
@@ -101,13 +101,17 @@ class CommitRecordResult(Enum):
     damage_out_of_hp = 2
     check_record_legal_failed = 3
     member_not_in_clan = 4
+    boss_not_challengeable = 5
+    on_another_tree = 6
 
 
 class CommitInProgressResult(Enum):
     success = 0
     illegal_target_boss = 1
     already_in_battle = 2
-    member_not_in_clan = 3
+    already_in_tree = 3
+    member_not_in_clan = 4
+    boss_not_challengeable = 5
 
 
 class CommitSubscribeResult(Enum):
@@ -124,6 +128,7 @@ class CommitBattlrOnTreeResult(Enum):
     already_on_tree = 2
     member_not_in_clan = 3
     illegal_target_boss = 4
+    boss_not_challengeable = 5
 
 
 class CommitSLResult(Enum):
@@ -131,6 +136,12 @@ class CommitSLResult(Enum):
     already_sl = 1
     member_not_in_clan = 2
     illegal_target_boss = 3
+
+
+class NewRecordLegalCheckResult(Enum):
+    success = 0
+    on_another_tree = 1
+    boss_not_challengeable = 2
 
 
 class ClanBattleData:
@@ -720,17 +731,17 @@ class ClanBattleData:
             return True
         return False
 
-    def check_new_record_legal(self, uid: str, target_cycle: int, target_boss: int, damage: int) -> bool:
+    def check_new_record_legal(self, uid: str, target_cycle: int, target_boss: int, damage: int) -> NewRecordLegalCheckResult:
         boss_state = self.get_current_boss_state()
         challenge_boss_state = boss_state[target_boss - 1]
         if target_cycle <= self.get_max_challenge_boss_cycle(boss_state) and challenge_boss_state.target_cycle == target_cycle and challenge_boss_state.boss_hp >= damage:
             if on_tree := self.get_battle_on_tree(uid):
                 if on_tree[0].target_boss == target_boss:
-                    return True
+                    return NewRecordLegalCheckResult.success
                 else:
-                    return False
-            return True
-        return False
+                    return NewRecordLegalCheckResult.on_another_tree
+            return NewRecordLegalCheckResult.success
+        return NewRecordLegalCheckResult.boss_not_challengeable
 
     async def commit_record(self, uid: str, target_boss: int, damage: str, comment: str, proxy_report_uid: str = None, force_use_full_chance: bool = False) -> CommitRecordResult:
         damage_num = 0
@@ -743,8 +754,10 @@ class ClanBattleData:
         record_status = self.get_today_record_status(uid)
         if damage_num > boss.boss_hp:
             return CommitRecordResult.damage_out_of_hp
-        if not self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, damage_num):
-            return CommitRecordResult.check_record_legal_failed
+        if (check_result := self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, damage_num)) == NewRecordLegalCheckResult.boss_not_challengeable:
+            return CommitRecordResult.boss_not_challengeable
+        if check_result == NewRecordLegalCheckResult.on_another_tree:
+            return CommitRecordResult.on_another_tree
         if not self.check_joined_clan(uid):
             return CommitRecordResult.member_not_in_clan
         if on_tree := self.get_battle_on_tree(uid=uid):
@@ -769,12 +782,14 @@ class ClanBattleData:
     def commit_battle_in_progress(self, uid: str, target_boss: int, comment: str) -> CommitInProgressResult:
         boss_status = self.get_current_boss_state()
         boss = boss_status[target_boss-1]
-        if not self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1):
-            return CommitInProgressResult.illegal_target_boss
+        if (check_result := self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1)) == NewRecordLegalCheckResult.boss_not_challengeable:
+            return CommitInProgressResult.boss_not_challengeable
+        if check_result == NewRecordLegalCheckResult.on_another_tree:
+            return CommitInProgressResult.already_in_tree
         if not self.check_joined_clan(uid):
             return CommitInProgressResult.member_not_in_clan
         if on_tree := self.get_battle_on_tree(uid):
-            return CommitInProgressResult.already_in_battle
+            return CommitInProgressResult.already_in_tree
         if in_proc := self.get_battle_in_progress(uid):
             return CommitInProgressResult.already_in_battle
         if sub := self.get_battle_subscribe(uid, target_boss, boss.target_cycle):
@@ -807,8 +822,10 @@ class ClanBattleData:
         boss = boss_status[target_boss-1]
         if not self.check_joined_clan(uid):
             return CommitBattlrOnTreeResult.member_not_in_clan
-        if not self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1):
-            return CommitBattlrOnTreeResult.illegal_target_boss
+        if (check_result := self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1)) == NewRecordLegalCheckResult.boss_not_challengeable:
+            return CommitBattlrOnTreeResult.boss_not_challengeable
+        if (check_result := self.check_new_record_legal(uid, boss.target_cycle, boss.target_boss, 1)) == NewRecordLegalCheckResult.boss_not_challengeable:
+            return CommitBattlrOnTreeResult.already_on_tree
         if self.get_battle_on_tree(uid):
             return CommitBattlrOnTreeResult.already_on_tree
         if sub := self.get_battle_subscribe(uid, target_boss, boss.target_cycle):
@@ -944,7 +961,7 @@ class Tools:
         return ret_text
 
     @staticmethod
-    def get_num_str_with_dot(num: int):
+    def get_num_str_with_dot(num: int) -> str:
         num_list = list(str(num))
         index = len(str(num))
         while(index > 3):

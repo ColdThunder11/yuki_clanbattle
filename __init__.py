@@ -46,15 +46,17 @@ call_api_orig_func = None
 
 VERSION = "0.1.6"
 WEB_URL = "https://yukiclanbattle.shikeschedule.cn/"
+ENABLE_PRIVATE_HOOK = True
 
 
 async def call_api_func_hook(self, api: str, **data: Any) -> Any:
     # print(api)
-    if api == "send_msg":
-        if (not "message_type" in data and "user_id" in data) or ("message_type" in data and data["message_type"] == "private"):
+    if ENABLE_PRIVATE_HOOK:
+        if api == "send_msg":
+            if (not "message_type" in data and "user_id" in data) or ("message_type" in data and data["message_type"] == "private"):
+                return
+        elif api == "send_private_msg":
             return
-    elif api == "send_private_msg":
-        return
     return await call_api_orig_func(self, api, **data)
 
 
@@ -1088,6 +1090,10 @@ async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State = 
         await clanbattle_qq.commit_record.finish("上报数据合法性检查错误，请检查是否正确上报")
     elif result == CommitRecordResult.member_not_in_clan:
         await clanbattle_qq.commit_record.finish("您还未加入公会，请发送“加入公会”加入")
+    elif result == CommitRecordResult.boss_not_challengeable:
+        await clanbattle_qq.commit_record.finish("现在无法挑战这个boss，别在这发癫了！")
+    elif result == CommitRecordResult.on_another_tree:
+        await clanbattle_qq.commit_record.finish("你还挂在其他树上，先下树再说吧")
 
 
 @clanbattle_qq.commit_kill_record.handle()
@@ -1134,6 +1140,10 @@ async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State 
         await clanbattle_qq.commit_kill_record.finish("上报数据合法性检查错误，请检查是否正确上报")
     elif result == CommitRecordResult.member_not_in_clan:
         await clanbattle_qq.commit_kill_record.finish("您还未加入公会，请发送“加入公会”加入")
+    elif result == CommitRecordResult.boss_not_challengeable:
+        await clanbattle_qq.commit_kill_record.finish("现在无法挑战这个boss，别在这发癫了！")
+    elif result == CommitRecordResult.on_another_tree:
+        await clanbattle_qq.commit_kill_record.finish("你还挂在其他树上，先下树再说吧")
 
 
 @clanbattle_qq.queue.handle()
@@ -1175,7 +1185,10 @@ async def commit_in_progress(bot: Bot, event: GroupMessageEvent, state: T_State 
         await clanbattle_qq.queue.finish("您目前无法挑战这个boss")
     elif result == CommitInProgressResult.member_not_in_clan:
         await clanbattle_qq.queue.finish("您还未加入公会，请发送“加入公会”加入")
-
+    elif result == CommitInProgressResult.already_in_tree:
+        await clanbattle_qq.queue.finish("你还挂在其他树上，先下树再说吧")
+    elif result == CommitInProgressResult.boss_not_challengeable:
+        await clanbattle_qq.queue.finish("现在无法挑战这个boss，别在这发癫了！")
 
 @clanbattle_qq.on_tree.handle()
 async def commit_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
@@ -1207,11 +1220,13 @@ async def commit_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State = St
     elif result == CommitBattlrOnTreeResult.already_in_other_boss_progress:
         await clanbattle_qq.on_tree.finish("您已经申请挑战其他boss了")
     elif result == CommitBattlrOnTreeResult.already_on_tree:
-        await clanbattle_qq.on_tree.finish("您已经挂在树上了")
+        await clanbattle_qq.on_tree.finish("您已经挂在树上了，别搁这挂树了")
     elif result == CommitBattlrOnTreeResult.illegal_target_boss:
         await clanbattle_qq.on_tree.finish("您现在还不能挂在这棵树上")
     elif result == CommitBattlrOnTreeResult.member_not_in_clan:
         await clanbattle_qq.on_tree.finish("您还未加入公会，请发送“加入公会”加入")
+    elif result == CommitBattlrOnTreeResult.boss_not_challengeable:
+        await clanbattle_qq.on_tree.finish("现在无法挑战这个boss，别在这发癫了！")
 
 
 @clanbattle_qq.subscribe.handle()
