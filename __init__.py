@@ -47,7 +47,7 @@ call_api_orig_func = None
 VERSION = "0.1.6"
 WEB_URL = "https://yukiclanbattle.shikeschedule.cn/"
 ENABLE_PRIVATE_HOOK = True
-
+ENABLE_ANTI_MSG_FAIL = True
 
 async def call_api_func_hook(self, api: str, **data: Any) -> Any:
     # print(api)
@@ -998,15 +998,15 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
         await clanbattle_qq.progress.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
     boss_status = clan.get_current_boss_state()
     if state['_matched_groups'][0] == "状态" and not state['_matched_groups'][1]:
-        msg = "当前状态：\n"
+        msg = "当前状态：\n" if not ENABLE_ANTI_MSG_FAIL else "Status:\n"
         for boss in boss_status:
-            msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}"
+            msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}" if not ENABLE_ANTI_MSG_FAIL else f"{boss.target_cycle}周目{boss.target_boss}王 HP{Tools.get_num_str_with_dot(boss.boss_hp)}"
             if not clan.check_boss_challengeable(boss.target_cycle, boss.target_boss):
                 msg += "（不可挑战）"
             msg += "\n"
         status = clan.get_today_record_status_total()
         msg += f"今日已出{status[0]}刀，剩余{status[1]}刀补偿刀"
-        await clanbattle_qq.progress.finish(msg.strip())
+        await clanbattle_qq.progress.finish(msg.strip() if not ENABLE_ANTI_MSG_FAIL else msg.strip() + "喵")
     elif state['_matched_groups'][1]:
         boss_count = int(state['_matched_groups'][1])
         boss = boss_status[boss_count-1]
@@ -1081,7 +1081,10 @@ async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State = 
             record_type = "补偿刀"
         else:
             record_type = "完整刀"
-        await clanbattle_qq.commit_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
+        if not ENABLE_ANTI_MSG_FAIL:
+            await clanbattle_qq.commit_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
+        else:
+            await clanbattle_qq.commit_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿，当前为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目 HP{Tools.get_num_str_with_dot(boss_status.boss_hp)}喵")
     elif result == CommitRecordResult.illegal_damage_inpiut:
         await clanbattle_qq.commit_record.finish("上报的伤害格式不合法")
     elif result == CommitRecordResult.damage_out_of_hp:
@@ -1131,7 +1134,10 @@ async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State 
             record_type = "补偿刀"
         else:
             record_type = "完整刀"
-        await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击破\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
+        if not ENABLE_ANTI_MSG_FAIL:
+            await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击破\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
+        else:
+            await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击败\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目 HP{Tools.get_num_str_with_dot(boss_status.boss_hp)}nya")
     elif result == CommitRecordResult.illegal_damage_inpiut:
         await clanbattle_qq.commit_kill_record.finish("上报的伤害格式不合法")
     elif result == CommitRecordResult.damage_out_of_hp:

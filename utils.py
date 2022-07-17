@@ -766,6 +766,14 @@ class ClanBattleData:
             on_sub[0].delete_instance()
         if in_progress := self.get_battle_in_progress(uid, target_boss):
             in_progress[0].delete_instance()
+        #process proxy reporter
+        if proxy_report_uid:
+            if on_tree := self.get_battle_on_tree(uid=proxy_report_uid):
+                on_tree[0].delete_instance()
+            if on_sub := self.get_battle_subscribe(uid=proxy_report_uid, boss=target_boss, boss_cycle=boss.target_cycle):
+                on_sub[0].delete_instance()
+            if in_progress := self.get_battle_in_progress(proxy_report_uid, target_boss):
+                in_progress[0].delete_instance()
         if record_status.remain_addition_challeng > 0 and not force_use_full_chance:
             self.create_new_record(uid, boss.target_cycle,
                                    target_boss, damage_num, boss.boss_hp, comment, True, False, proxy_report_uid)
