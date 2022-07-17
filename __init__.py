@@ -1066,7 +1066,12 @@ async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State = 
             challenge_boss = progress[0].target_boss
         elif on_tree := clan.get_battle_on_tree(uid=uid):
             challenge_boss = on_tree[0].target_boss
-        else:
+        elif proxy_report_uid:
+            if progress := clan.get_battle_in_progress(uid=proxy_report_uid):
+                challenge_boss = progress[0].target_boss
+            elif on_tree := clan.get_battle_on_tree(uid=proxy_report_uid):
+                challenge_boss = on_tree[0].target_boss
+        if not challenge_boss:
             await clanbattle_qq.commit_record.finish("您还没有正在挑战的boss，请发送“报刀x 伤害”来进行报刀")
     if not clan:
         await clanbattle_qq.commit_record.finish("本群还未创建公会，发送“创建[台日]服公会”来创建公会")
@@ -1121,7 +1126,12 @@ async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State 
             challenge_boss = progress[0].target_boss
         elif on_tree := clan.get_battle_on_tree(uid=uid):
             challenge_boss = on_tree[0].target_boss
-        else:
+        elif proxy_report_uid:
+            if progress := clan.get_battle_in_progress(uid=proxy_report_uid):
+                challenge_boss = progress[0].target_boss
+            elif on_tree := clan.get_battle_on_tree(uid=proxy_report_uid):
+                challenge_boss = on_tree[0].target_boss
+        if not challenge_boss:
             await clanbattle_qq.commit_kill_record.finish("您还没有正在挑战的boss，请发送“尾刀x”来进行报刀")
     boss_status = clan.get_current_boss_state()[challenge_boss-1]
     challenge_damage = str(boss_status.boss_hp)
