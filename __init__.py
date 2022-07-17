@@ -44,7 +44,7 @@ clanbattle = ClanBattle()
 call_api_orig_func = None
 
 
-VERSION = "0.1.6"
+VERSION = "0.1.7"
 WEB_URL = "https://yukiclanbattle.shikeschedule.cn/"
 ENABLE_PRIVATE_HOOK = True
 ENABLE_ANTI_MSG_FAIL = True
