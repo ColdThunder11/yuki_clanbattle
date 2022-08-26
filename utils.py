@@ -766,7 +766,7 @@ class ClanBattleData:
             on_sub[0].delete_instance()
         if in_progress := self.get_battle_in_progress(uid, target_boss):
             in_progress[0].delete_instance()
-        #process proxy reporter
+        # process proxy reporter
         if proxy_report_uid:
             if on_tree := self.get_battle_on_tree(uid=proxy_report_uid):
                 on_tree[0].delete_instance()
