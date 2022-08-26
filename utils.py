@@ -15,14 +15,30 @@ from nonebot.adapters.onebot.v11 import Message, MessageSegment
 from nonebot.exception import NoLogException
 from peewee import _BoundModelsContext
 from pkg_resources import set_extraction_path
-from .db import User, ClanInfo, BattleOnTree, BattleRecord, BattleInProgress, BattleSL, BattleSubscribe
+from .db import BaseModel, User, ClanInfo, BattleOnTree, BattleRecord, BattleInProgress, BattleSL, BattleSubscribe
 from .exception import ClanBattleException, ClanBattleDamageParseException
 from typing import Any, List, Union, Optional, Tuple
 import json
 import uuid
 import hashlib
+import pydantic
 
-db_salt = "sa823bs7ty1d1293asiu7ysaas"
+db_salt = "114514"
+
+class BossInfo(pydantic.BaseModel):
+    class BossAreaInfo():
+        jp:List[List[int]]
+        tw:List[List[int]]
+        cn:List[List[int]]
+
+    class BossCycleInfo():
+        jp:List[int]
+        tw:List[int]
+        cn:List[int]
+
+    boss: BossAreaInfo
+    cycle: BossCycleInfo
+
 
 boss_info = {
     'boss': {
@@ -85,6 +101,7 @@ class TodayBattleStatus:
     remain_addition_challeng: int
     last_is_addition: bool
     use_sl: bool
+    BossInfo.parse_obj()
 
     def __init__(self, uid: str, today_challenged: int, addition_challeng: int, remain_addition_challeng: int, last_is_addition: bool, use_sl: bool) -> None:
         self.uid = uid

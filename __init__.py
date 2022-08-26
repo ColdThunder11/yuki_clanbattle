@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .utils import BossStatus, ClanBattle, ClanBattleData, CommitBattlrOnTreeResult, CommitInProgressResult, CommitRecordResult, CommitSLResult, CommitSubscribeResult, WebAuth
 from .utils import Tools
+from .utils import boss_info, db_salt, BossInfo
 
 
 from .exception import WebsocketResloveException, WebsocketAuthException
@@ -42,13 +43,21 @@ clanbattle = ClanBattle()
 
 call_api_orig_func = None
 
-clanbattle_config = None
+clanbattle_config: "ConfigClass" = None
 VERSION = "0.1.7"
+
+
+class ConfigClass(pydantic.BaseModel):
+    web_url: str
+    disable_private_message: bool
+    enable_anti_msg_fail: bool
+    db_salt: str
+    boss_info: BossInfo
 
 
 async def call_api_func_hook(self, api: str, **data: Any) -> Any:
     # print(api)
-    if clanbattle_config["disable_private_message"]:
+    if clanbattle_config.disable_private_message:
         if api == "send_msg":
             if (not "message_type" in data and "user_id" in data) or ("message_type" in data and data["message_type"] == "private"):
                 return
@@ -71,8 +80,12 @@ async def install_call_api_hook():  # 阻止发送私聊消息
 
 def LoadConfig():
     global clanbattle_config
+    global boss_info
+    global db_salt
     with open(os.path.join(path.dirname(__file__), "config.json"), "r", encoding="utf8") as fp:
-        clanbattle_config = json.load(fp)
+        clanbattle_config = ConfigClass.parse_obj(json.load(fp))
+        boss_info = clanbattle_config.boss_info
+        db_salt = clanbattle_config.db_salt
 
 
 class WebLoginPost(BaseModel):
@@ -1003,16 +1016,15 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
         await clanbattle_qq.progress.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
     boss_status = clan.get_current_boss_state()
     if state['_matched_groups'][0] == "状态" and not state['_matched_groups'][1]:
-        msg = "当前状态：\n" if not clanbattle_config["enable_anti_msg_fail"] else "Status:\n"
+        msg = "当前状态：\n" if not clanbattle_config.enable_anti_msg_fail else "Status:\n"
         for boss in boss_status:
-            msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}" if not clanbattle_config[
-                "enable_anti_msg_fail"] else f"{boss.target_cycle}周目{boss.target_boss}王 HP{Tools.get_num_str_with_dot(boss.boss_hp)}"
+            msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}" if not clanbattle_config.enable_anti_msg_fail else f"{boss.target_cycle}周目{boss.target_boss}王 HP{Tools.get_num_str_with_dot(boss.boss_hp)}"
             if not clan.check_boss_challengeable(boss.target_cycle, boss.target_boss):
                 msg += "（不可挑战）"
             msg += "\n"
         status = clan.get_today_record_status_total()
         msg += f"今日已出{status[0]}刀，剩余{status[1]}刀补偿刀"
-        await clanbattle_qq.progress.finish(msg.strip() if not clanbattle_config["enable_anti_msg_fail"] else msg.strip() + "喵")
+        await clanbattle_qq.progress.finish(msg.strip() if not clanbattle_config.enable_anti_msg_fail else msg.strip() + "喵")
     elif state['_matched_groups'][1]:
         boss_count = int(state['_matched_groups'][1])
         boss = boss_status[boss_count-1]
@@ -1092,7 +1104,7 @@ async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State = 
             record_type = "补偿刀"
         else:
             record_type = "完整刀"
-        if not clanbattle_config["enable_anti_msg_fail"]:
+        if not clanbattle_config.enable_anti_msg_fail:
             await clanbattle_qq.commit_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
         else:
             await clanbattle_qq.commit_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿，当前为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目 HP{Tools.get_num_str_with_dot(boss_status.boss_hp)}喵")
@@ -1150,7 +1162,7 @@ async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State 
             record_type = "补偿刀"
         else:
             record_type = "完整刀"
-        if not clanbattle_config["enable_anti_msg_fail"]:
+        if not clanbattle_config.enable_anti_msg_fail:
             await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击破\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
         else:
             await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击败\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目 HP{Tools.get_num_str_with_dot(boss_status.boss_hp)}nya")
@@ -1705,13 +1717,13 @@ async def force_change_boss_status(bot: Bot, event: GroupMessageEvent, state: T_
 @clanbattle_qq.help.handle()
 async def send_bot_help(bot: Bot, event: MessageEvent, state: T_State = State()):
     if isinstance(event, GroupMessageEvent) or isinstance(event, PrivateMessageEvent):
-        await clanbattle_qq.help.finish(f"Yuki Clanbattle Ver{VERSION}\n会战帮助请见{clanbattle_config['web_url']}help")
+        await clanbattle_qq.help.finish(f"Yuki Clanbattle Ver{VERSION}\n会战帮助请见{clanbattle_config.web_url}help")
 
 
 @clanbattle_qq.webview.handle()
 async def send_webview(bot: Bot, event: MessageEvent, state: T_State = State()):
     if isinstance(event, GroupMessageEvent) or isinstance(event, PrivateMessageEvent):
-        await clanbattle_qq.webview.finish(f"请登录{clanbattle_config['web_url']}clan查看详情，首次登录前请私聊bot“设置密码+要设置的密码”来设置密码（由于风控暂时无回复）")
+        await clanbattle_qq.webview.finish(f"请登录{clanbattle_config.web_url}clan查看详情，首次登录前请私聊bot“设置密码+要设置的密码”来设置密码（由于风控暂时无回复）")
 
 
 @clanbattle_qq.join_all_member.handle()
