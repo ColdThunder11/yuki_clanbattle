@@ -313,7 +313,8 @@ class WebPostRoute:
         challenge_boss = int(item.target_boss)
         cycle = int(item.target_cycle)
         comment = item.comment if item.comment else None
-        result = clan.commit_batle_subscribe(uid, challenge_boss, cycle, comment)
+        result = clan.commit_batle_subscribe(
+            uid, challenge_boss, cycle, comment)
         bot: Bot = list(nonebot.get_bots().values())[0]
         if result == CommitSubscribeResult.success:
             await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"预约了{cycle}周目{challenge_boss}王")
@@ -326,7 +327,7 @@ class WebPostRoute:
             return{"err_code": 403, "msg": "boss已经死亡，请刷新页面重新查看"}
         elif result == CommitSubscribeResult.member_not_in_clan:
             return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
-    
+
     @staticmethod
     async def report_unsubscribe(item: WebReportSubscribe, session: str = Cookie(None)):
         uid = WebAuth.check_session_valid(session)
@@ -363,9 +364,11 @@ class WebPostRoute:
         proxy_report_uid = item.proxy_report_uid if item.is_proxy_report else None
         comment = item.comment if item.comment else None
         if item.is_proxy_report:
-            result = clan.commit_battle_sl(proxy_report_uid, boss, comment, uid)
+            result = clan.commit_battle_sl(
+                proxy_report_uid, boss, comment, uid)
         else:
-            result = clan.commit_battle_sl(uid, boss, comment, proxy_report_uid)
+            result = clan.commit_battle_sl(
+                uid, boss, comment, proxy_report_uid)
         if result == CommitSLResult.success:
             return{"err_code": 0}
         elif result == CommitSLResult.illegal_target_boss:
@@ -394,7 +397,7 @@ class WebPostRoute:
             end_time = None
         record_list = []
         records = clan.get_record(uid=uid, boss=boss, cycle=cycle,
-                                start_time=start_time, end_time=end_time, time_desc=True)
+                                  start_time=start_time, end_time=end_time, time_desc=True)
         if not records:
             return {"err_code": 0, "record": []}
         for record in records:
@@ -412,9 +415,9 @@ class WebPostRoute:
         gid = clan.clan_info.clan_gid
         await bot.send_group_msg(group_id=gid, message=f"会战管理员已经将会战档案切换为{item.data_num}，请注意")
         return {"err_code": 0, "msg": "设置成功"}
-    
+
     @staticmethod
-    async def battle_status(item: WebQueryChallengeStatusForm, session: str = Cookie(None)):  
+    async def battle_status(item: WebQueryChallengeStatusForm, session: str = Cookie(None)):
         clan = clanbattle.get_clan_data(item.clan_gid)
         status_list = []
         members = clan.get_clan_members()
@@ -427,8 +430,10 @@ class WebPostRoute:
                     hours=9) if clan.clan_info.clan_type == "jp" else datetime.timedelta(hours=8)
                 now_time_today = datetime.datetime.strptime(
                     day_data, "%Y-%m-%d") + datetime.timedelta(days=1)
-                start_time = now_time_today + datetime.timedelta(hours=5) - detla
-                end_time = now_time_today + datetime.timedelta(hours=29) - detla
+                start_time = now_time_today + \
+                    datetime.timedelta(hours=5) - detla
+                end_time = now_time_today + \
+                    datetime.timedelta(hours=29) - detla
                 status = clan.get_record_status(member, start_time, end_time)
             status_list.append(status)
         return {"err_code": 0, "status": status_list}
@@ -454,7 +459,7 @@ class WebPostRoute:
         if len(notice_message) > 1:
             await bot.send_group_msg(group_id=item.clan_gid, message=notice_message)
         return {"err_code": 0}
-    
+
     @staticmethod
     async def remove_clan_member(item: WebRemoveClanMember, session: str = Cookie(None)):
         uid = WebAuth.check_session_valid(session)
@@ -468,7 +473,7 @@ class WebPostRoute:
             return {"err_code": 0}
         else:
             return {"err_code": 403, "msg": "移出公会失败，Ta可能还未加入公会？请尝试刷新页面！"}
-    
+
     @staticmethod
     async def change_boss_status(item: WebChangeBossStatus, session: str = Cookie(None)):
         uid = WebAuth.check_session_valid(session)
@@ -481,6 +486,7 @@ class WebPostRoute:
             return {"err_code": 0}
         else:
             return {"err_code": 403, "msg": "调整状态出现错误"}
+
 
 if not "pytest" in sys.modules:
 
@@ -515,7 +521,7 @@ if not "pytest" in sys.modules:
                 sig = inspect.signature(post_func)
                 post_item_class: WebPostBase = sig.parameters["item"].annotation
                 item_inst = post_item_class.parse_obj(json_content)
-                #部分鉴权
+                # 部分鉴权
                 if not (uid := WebAuth.check_session_valid(session)):
                     return {"err_code": -1, "msg": "会话错误，请重新登录"}
                 joined_clan = clanbattle.get_joined_clan(uid)
@@ -525,6 +531,7 @@ if not "pytest" in sys.modules:
         except:
             response.status_code = 403
             return "Forbidden"
+
 
 class clanbattle_qq:
     worker = MatcherGroup(
