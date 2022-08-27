@@ -1,22 +1,18 @@
-from ast import Load
 import asyncio
-from importlib.resources import path
-from random import randrange
-from typing import Optional
-from warnings import resetwarnings
 import nonebot
 import json
 import datetime
 import inspect
 import os
 import sys
-
 import pydantic
-from peewee import Check, Function
-from playhouse.shortcuts import model_to_dict
+
 from typing import ForwardRef, _eval_type  # type: ignore
 from typing import Any, List, Dict, Type, Union, Optional, TYPE_CHECKING
+
+from playhouse.shortcuts import model_to_dict
 from pydantic import BaseModel, conset
+
 from nonebot.adapters.onebot.v11 import Bot, Event, MessageEvent
 from nonebot.adapters.onebot.v11.event import PrivateMessageEvent, GroupMessageEvent, PrivateMessageEvent
 from nonebot.adapters.onebot.v11.message import Message, MessageSegment
@@ -32,7 +28,6 @@ from .utils import BossStatus, ClanBattle, ClanBattleData, CommitBattlrOnTreeRes
 from .utils import Tools
 from .utils import boss_info, db_salt, BossInfo
 
-
 from .exception import WebsocketResloveException, WebsocketAuthException
 
 #from .ws_protocol_pb2 import WsRequestMessage, WsResponseMessage, WsUpdateRequireNotice
@@ -42,6 +37,7 @@ clanbattle = ClanBattle()
 call_api_orig_func = None
 
 clanbattle_config: "ConfigClass" = None
+
 VERSION = "0.1.7"
 
 
@@ -62,6 +58,7 @@ async def call_api_func_hook(self, api: str, **data: Any) -> Any:
         elif api == "send_private_msg":
             return
     return await call_api_orig_func(self, api, **data)
+
 
 def load_config():
     global clanbattle_config
@@ -87,14 +84,15 @@ if not "pytest" in sys.modules:
         # mount static file if exsist
         static_file_path = os.path.join(os.path.dirname(__file__), "dist")
         if os.path.isdir(static_file_path):
-            app.mount("/", StaticFiles(directory=static_file_path), name="static")
+            app.mount("/", StaticFiles(directory=static_file_path),
+                      name="static")
 else:
     load_config()
-    #set unit test env
+    # set unit test env
     clanbattle_config.enable_anti_msg_fail = False
     clanbattle_config.disable_private_message = False
     clanbattle_config.web_url = "http://114514.com"
-    
+
 
 class WebLoginPost(BaseModel):
     qq_uid: str
@@ -236,28 +234,10 @@ class WebGetRoute:
         data_num = clan.get_current_clanbattle_data()
         return{"err_code": 0, "data_num": data_num}
 
-if not "pytest" in sys.modules:
 
-    @app.get("/api/clanbattle/{api_name}")
-    async def _(api_name: str, response: Response, clan_gid: str = None, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        if not hasattr(WebGetRoute, api_name):
-            response.status_code = 404
-            return {"err_code": 404, "msg": "找不到该路由"}
-        if api_name in ["get_joined_clan"]:
-            ret = await getattr(WebGetRoute, api_name)(uid=uid)
-        else:
-            joined_clan = clanbattle.get_joined_clan(uid)
-            if not clan_gid in joined_clan:
-                return {"err_code": 403, "msg": "您还没有加入该公会"}
-            #clan = clanbattle.get_clan_data(clan_gid)
-            ret = await getattr(WebGetRoute, api_name)(uid=uid, clan_gid=clan_gid)
-        return ret
-
-
-    @app.post("/api/clanbattle/login")
-    async def _(item: WebLoginPost, request: Request, response: Response):
+class WebPostRoute:
+    @staticmethod
+    async def login(item: WebLoginPost, request: Request, response: Response):
         login_item = WebAuth.login(item.qq_uid, item.password)
         if login_item[0] == 404:
             return {"err_code": 404, "msg": "找不到该用户"}
@@ -267,14 +247,8 @@ if not "pytest" in sys.modules:
         response.set_cookie(key="session", value=session)
         return {"err_code": 0, "msg": "", "cookie": session}
 
-
-    @app.post("/api/clanbattle/report_record")
-    async def _(item: WebReportRecord, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    @staticmethod
+    async def report_record(item: WebReportRecord, session: str = Cookie(None)):
         if item.is_proxy_report:
             joined_clan = clanbattle.get_joined_clan(item.proxy_report_member)
             if not item.clan_gid in joined_clan:
@@ -314,14 +288,9 @@ if not "pytest" in sys.modules:
         elif result == CommitRecordResult.member_not_in_clan:
             return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
-
-    @app.post("/api/clanbattle/report_queue")
-    async def _(item: WebReportQueue, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    @staticmethod
+    async def report_queue(item: WebReportQueue, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         challenge_boss = int(item.target_boss)
         comment = item.comment if item.comment else None
@@ -337,14 +306,9 @@ if not "pytest" in sys.modules:
         elif result == CommitInProgressResult.member_not_in_clan:
             return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
-
-    @app.post("/api/clanbattle/report_subscribe")
-    async def _(item: WebReportSubscribe, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    @staticmethod
+    async def report_subscribe(item: WebReportSubscribe, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         challenge_boss = int(item.target_boss)
         cycle = int(item.target_cycle)
@@ -362,15 +326,10 @@ if not "pytest" in sys.modules:
             return{"err_code": 403, "msg": "boss已经死亡，请刷新页面重新查看"}
         elif result == CommitSubscribeResult.member_not_in_clan:
             return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
-
-
-    @app.post("/api/clanbattle/report_unsubscribe")
-    async def _(item: WebReportSubscribe, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    
+    @staticmethod
+    async def report_unsubscribe(item: WebReportSubscribe, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         challenge_boss = int(item.target_boss)
         cycle = int(item.target_cycle)
@@ -380,14 +339,9 @@ if not "pytest" in sys.modules:
         else:
             return{"err_code": 403, "msg": "取消预约失败，请确认您已经预约该boss喵"}
 
-
-    @app.post("/api/clanbattle/report_ontree")
-    async def _(item: WebReportOnTree, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    @staticmethod
+    async def report_ontree(item: WebReportOnTree, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         boss = int(item.boss)
         comment = item.comment if item.comment else None
@@ -401,18 +355,9 @@ if not "pytest" in sys.modules:
         elif result == CommitBattlrOnTreeResult.member_not_in_clan:
             return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
-
-    @app.post("/api/clanbattle/report_sl")
-    async def _(item: WebReportSL, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
-        if item.is_proxy_report:
-            joined_clan = clanbattle.get_joined_clan(item.proxy_report_uid)
-            if not item.clan_gid in joined_clan:
-                return {"err_code": 403, "msg": "您还没有加入该公会"}
+    @staticmethod
+    async def report_sl(item: WebReportSL, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         boss = int(item.boss)
         proxy_report_uid = item.proxy_report_uid if item.is_proxy_report else None
@@ -430,14 +375,8 @@ if not "pytest" in sys.modules:
         elif result == CommitSLResult.member_not_in_clan:
             return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
-
-    @app.post("/api/clanbattle/query_record")
-    async def _(item: WebQueryReport, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    @staticmethod
+    async def query_record(item: WebQueryReport, session: str = Cookie(None)):
         clan = clanbattle.get_clan_data(item.clan_gid)
         uid = item.member if item.member != '' else None
         boss = int(item.boss) if item.boss != '' else None
@@ -462,14 +401,9 @@ if not "pytest" in sys.modules:
             record_list.append(model_to_dict(record))
         return {"err_code": 0, "record": record_list}
 
-
-    @app.post("/api/clanbattle/change_current_clanbattle_data_num")
-    async def _(item: WebSetClanbattleData, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    @staticmethod
+    async def change_current_clanbattle_data_num(item: WebSetClanbattleData, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         if not clan.check_admin_permission(str(uid)):
             return {"err_code": -2, "msg": "您不是会战管理员，无权切换会战档案"}
@@ -478,15 +412,9 @@ if not "pytest" in sys.modules:
         gid = clan.clan_info.clan_gid
         await bot.send_group_msg(group_id=gid, message=f"会战管理员已经将会战档案切换为{item.data_num}，请注意")
         return {"err_code": 0, "msg": "设置成功"}
-
-
-    @app.post("/api/clanbattle/battle_status")
-    async def _(item: WebQueryChallengeStatusForm, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    
+    @staticmethod
+    async def battle_status(item: WebQueryChallengeStatusForm, session: str = Cookie(None)):  
         clan = clanbattle.get_clan_data(item.clan_gid)
         status_list = []
         members = clan.get_clan_members()
@@ -505,14 +433,9 @@ if not "pytest" in sys.modules:
             status_list.append(status)
         return {"err_code": 0, "status": status_list}
 
-
-    @app.post("/api/clanbattle/notice_member")
-    async def _(item: WebNoticeChallengeForm, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    @staticmethod
+    async def notice_member(item: WebNoticeChallengeForm, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         if not clan.check_admin_permission(str(uid)):
             return {"err_code": -2, "msg": "您不是会战管理员，无权提醒其他成员出刀"}
@@ -531,15 +454,10 @@ if not "pytest" in sys.modules:
         if len(notice_message) > 1:
             await bot.send_group_msg(group_id=item.clan_gid, message=notice_message)
         return {"err_code": 0}
-
-
-    @app.post("/api/clanbattle/remove_clan_member")
-    async def _(item: WebRemoveClanMember, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    
+    @staticmethod
+    async def remove_clan_member(item: WebRemoveClanMember, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         if not clan.check_admin_permission(str(uid)):
             return {"err_code": -2, "msg": "您不是会战管理员，无权将其他成员移出公会"}
@@ -550,15 +468,10 @@ if not "pytest" in sys.modules:
             return {"err_code": 0}
         else:
             return {"err_code": 403, "msg": "移出公会失败，Ta可能还未加入公会？请尝试刷新页面！"}
-
-
-    @app.post("/api/clanbattle/change_boss_status")
-    async def _(item: WebChangeBossStatus, session: str = Cookie(None)):
-        if not (uid := WebAuth.check_session_valid(session)):
-            return {"err_code": -1, "msg": "会话错误，请重新登录"}
-        joined_clan = clanbattle.get_joined_clan(uid)
-        if not item.clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
+    
+    @staticmethod
+    async def change_boss_status(item: WebChangeBossStatus, session: str = Cookie(None)):
+        uid = WebAuth.check_session_valid(session)
         clan = clanbattle.get_clan_data(item.clan_gid)
         if not clan.check_admin_permission(str(uid)):
             return {"err_code": -2, "msg": "您不是会战管理员，无权调整boss状态"}
@@ -569,6 +482,49 @@ if not "pytest" in sys.modules:
         else:
             return {"err_code": 403, "msg": "调整状态出现错误"}
 
+if not "pytest" in sys.modules:
+
+    @app.get("/api/clanbattle/{api_name}")
+    async def _(api_name: str, response: Response, clan_gid: str = None, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        if not hasattr(WebGetRoute, api_name):
+            response.status_code = 404
+            return {"err_code": 404, "msg": "找不到该路由"}
+        if api_name in ["get_joined_clan"]:
+            ret = await getattr(WebGetRoute, api_name)(uid=uid)
+        else:
+            joined_clan = clanbattle.get_joined_clan(uid)
+            if not clan_gid in joined_clan:
+                return {"err_code": 403, "msg": "您还没有加入该公会"}
+            #clan = clanbattle.get_clan_data(clan_gid)
+            ret = await getattr(WebGetRoute, api_name)(uid=uid, clan_gid=clan_gid)
+        return ret
+
+    @app.post("/api/clanbattle/{api_name}")
+    async def _(api_name: str, request: Request, response: Response, session: str = Cookie(None),):
+        if not hasattr(WebPostRoute, api_name):
+            response.status_code = 404
+            return {"err_code": 404, "msg": "找不到该路由"}
+        try:
+            json_content = await request.json()
+            if api_name == "login":
+                return await WebPostRoute.login(WebLoginPost.parse_obj(json_content), request, response)
+            else:
+                post_func = getattr(WebPostRoute, api_name)
+                sig = inspect.signature(post_func)
+                post_item_class: WebPostBase = sig.parameters["item"].annotation
+                item_inst = post_item_class.parse_obj(json_content)
+                #部分鉴权
+                if not (uid := WebAuth.check_session_valid(session)):
+                    return {"err_code": -1, "msg": "会话错误，请重新登录"}
+                joined_clan = clanbattle.get_joined_clan(uid)
+                if not item_inst.clan_gid in joined_clan:
+                    return {"err_code": 403, "msg": "您还没有加入该公会"}
+                return await post_func(item=item_inst, session=session)
+        except:
+            response.status_code = 403
+            return "Forbidden"
 
 class clanbattle_qq:
     worker = MatcherGroup(
