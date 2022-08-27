@@ -26,12 +26,12 @@ import pydantic
 db_salt = "114514"
 
 class BossInfo(pydantic.BaseModel):
-    class BossAreaInfo():
+    class BossAreaInfo(pydantic.BaseModel):
         jp:List[List[int]]
         tw:List[List[int]]
         cn:List[List[int]]
 
-    class BossCycleInfo():
+    class BossCycleInfo(pydantic.BaseModel):
         jp:List[int]
         tw:List[int]
         cn:List[int]
@@ -40,34 +40,7 @@ class BossInfo(pydantic.BaseModel):
     cycle: BossCycleInfo
 
 
-boss_info = {
-    'boss': {
-        'jp': [
-            [6000000, 8000000, 10000000, 12000000, 15000000],
-            [6000000, 8000000, 10000000, 12000000, 15000000],
-            [12000000, 14000000, 17000000, 19000000, 22000000],
-            [22000000, 23000000, 27000000, 29000000, 31000000],
-            [105000000, 110000000, 125000000, 140000000, 150000000]
-        ],
-        'tw': [
-            [6000000, 8000000, 10000000, 12000000, 15000000],
-            [6000000, 8000000, 10000000, 12000000, 15000000],
-            [12000000, 14000000, 17000000, 19000000, 22000000],
-            [19000000, 20000000, 23000000, 25000000, 27000000],
-            [95000000, 100000000, 110000000, 120000000, 130000000]
-        ],
-        'cn': [
-            [6000000, 8000000, 10000000, 12000000, 20000000],
-            [6000000, 8000000, 10000000, 12000000, 20000000],
-            [6000000, 8000000, 10000000, 12000000, 20000000]
-        ]
-    },
-    'cycle': {
-        'jp': [1, 4, 11, 31, 39],
-        'tw': [1, 4, 11, 31, 39],
-        'cn': [1, 4, 11]
-    }
-}
+boss_info:BossInfo = None
 
 
 class BossStatus:
@@ -101,7 +74,6 @@ class TodayBattleStatus:
     remain_addition_challeng: int
     last_is_addition: bool
     use_sl: bool
-    BossInfo.parse_obj()
 
     def __init__(self, uid: str, today_challenged: int, addition_challeng: int, remain_addition_challeng: int, last_is_addition: bool, use_sl: bool) -> None:
         self.uid = uid

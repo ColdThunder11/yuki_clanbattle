@@ -1,3 +1,4 @@
+from ast import Load
 import asyncio
 from importlib.resources import path
 from random import randrange
@@ -8,6 +9,7 @@ import json
 import datetime
 import inspect
 import os
+import sys
 
 import pydantic
 from peewee import Check, Function
@@ -35,10 +37,6 @@ from .exception import WebsocketResloveException, WebsocketAuthException
 
 #from .ws_protocol_pb2 import WsRequestMessage, WsResponseMessage, WsUpdateRequireNotice
 
-driver = nonebot.get_driver()
-
-app: FastAPI = nonebot.get_app()
-
 clanbattle = ClanBattle()
 
 call_api_orig_func = None
@@ -65,28 +63,38 @@ async def call_api_func_hook(self, api: str, **data: Any) -> Any:
             return
     return await call_api_orig_func(self, api, **data)
 
-
-@driver.on_startup
-async def install_call_api_hook():  # 阻止发送私聊消息
-    global call_api_orig_func
-    LoadConfig()
-    call_api_orig_func = Bot.call_api
-    Bot.call_api = call_api_func_hook
-    # mount static file if exsist
-    static_file_path = os.path.join(os.path.dirname(__file__), "dist")
-    if os.path.isdir(static_file_path):
-        app.mount("/", StaticFiles(directory=static_file_path), name="static")
-
-
-def LoadConfig():
+def load_config():
     global clanbattle_config
     global boss_info
     global db_salt
-    with open(os.path.join(path.dirname(__file__), "config.json"), "r", encoding="utf8") as fp:
+    with open(os.path.join(os.path.dirname(__file__), "config.json"), "r", encoding="utf8") as fp:
         clanbattle_config = ConfigClass.parse_obj(json.load(fp))
         boss_info = clanbattle_config.boss_info
         db_salt = clanbattle_config.db_salt
 
+
+if not "pytest" in sys.modules:
+    driver = nonebot.get_driver()
+
+    app: FastAPI = nonebot.get_app()
+
+    @driver.on_startup
+    async def install_call_api_hook():  # 阻止发送私聊消息
+        global call_api_orig_func
+        load_config()
+        call_api_orig_func = Bot.call_api
+        Bot.call_api = call_api_func_hook
+        # mount static file if exsist
+        static_file_path = os.path.join(os.path.dirname(__file__), "dist")
+        if os.path.isdir(static_file_path):
+            app.mount("/", StaticFiles(directory=static_file_path), name="static")
+else:
+    load_config()
+    #set unit test env
+    clanbattle_config.enable_anti_msg_fail = False
+    clanbattle_config.disable_private_message = False
+    clanbattle_config.web_url = "http://114514.com"
+    
 
 class WebLoginPost(BaseModel):
     qq_uid: str
@@ -228,263 +236,213 @@ class WebGetRoute:
         data_num = clan.get_current_clanbattle_data()
         return{"err_code": 0, "data_num": data_num}
 
+if not "pytest" in sys.modules:
 
-@app.get("/api/clanbattle/{api_name}")
-async def _(api_name: str, response: Response, clan_gid: str = None, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    if not hasattr(WebGetRoute, api_name):
-        response.status_code = 404
-        return {"err_code": 404, "msg": "找不到该路由"}
-    if api_name in ["get_joined_clan"]:
-        ret = await getattr(WebGetRoute, api_name)(uid=uid)
-    else:
+    @app.get("/api/clanbattle/{api_name}")
+    async def _(api_name: str, response: Response, clan_gid: str = None, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        if not hasattr(WebGetRoute, api_name):
+            response.status_code = 404
+            return {"err_code": 404, "msg": "找不到该路由"}
+        if api_name in ["get_joined_clan"]:
+            ret = await getattr(WebGetRoute, api_name)(uid=uid)
+        else:
+            joined_clan = clanbattle.get_joined_clan(uid)
+            if not clan_gid in joined_clan:
+                return {"err_code": 403, "msg": "您还没有加入该公会"}
+            #clan = clanbattle.get_clan_data(clan_gid)
+            ret = await getattr(WebGetRoute, api_name)(uid=uid, clan_gid=clan_gid)
+        return ret
+
+
+    @app.post("/api/clanbattle/login")
+    async def _(item: WebLoginPost, request: Request, response: Response):
+        login_item = WebAuth.login(item.qq_uid, item.password)
+        if login_item[0] == 404:
+            return {"err_code": 404, "msg": "找不到该用户"}
+        elif login_item[0] == 403:
+            return {"err_code": 403, "msg": "密码错误，如未设置请查看帮助设置密码"}
+        session = login_item[1]
+        response.set_cookie(key="session", value=session)
+        return {"err_code": 0, "msg": "", "cookie": session}
+
+
+    @app.post("/api/clanbattle/report_record")
+    async def _(item: WebReportRecord, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
         joined_clan = clanbattle.get_joined_clan(uid)
-        if not clan_gid in joined_clan:
-            return {"err_code": 403, "msg": "您还没有加入该公会"}
-        #clan = clanbattle.get_clan_data(clan_gid)
-        ret = await getattr(WebGetRoute, api_name)(uid=uid, clan_gid=clan_gid)
-    return ret
-
-
-@app.post("/api/clanbattle/login")
-async def _(item: WebLoginPost, request: Request, response: Response):
-    login_item = WebAuth.login(item.qq_uid, item.password)
-    if login_item[0] == 404:
-        return {"err_code": 404, "msg": "找不到该用户"}
-    elif login_item[0] == 403:
-        return {"err_code": 403, "msg": "密码错误，如未设置请查看帮助设置密码"}
-    session = login_item[1]
-    response.set_cookie(key="session", value=session)
-    return {"err_code": 0, "msg": "", "cookie": session}
-
-
-@app.post("/api/clanbattle/report_record")
-async def _(item: WebReportRecord, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    if item.is_proxy_report:
-        joined_clan = clanbattle.get_joined_clan(item.proxy_report_member)
         if not item.clan_gid in joined_clan:
             return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    challenge_boss = int(item.target_boss)
-    proxy_report_uid = item.proxy_report_member if item.is_proxy_report else None
-    comment = item.comment if item.comment else None
-    force_use_full_chance = item.froce_use_full_chance
-    if not item.is_kill_boss:
-        challenge_damage = item.damage
-    else:
-        boss_status = clan.get_current_boss_state()[challenge_boss-1]
-        challenge_damage = str(boss_status.boss_hp)
-    if item.is_proxy_report:
-        result = await clan.commit_record(proxy_report_uid, challenge_boss, challenge_damage, comment, uid, force_use_full_chance)
-        uid = proxy_report_uid
-    else:
-        result = await clan.commit_record(uid, challenge_boss, challenge_damage, comment, None, force_use_full_chance)
-    bot: Bot = list(nonebot.get_bots().values())[0]
-    if result == CommitRecordResult.success:
-        record = clan.get_recent_record(uid)[0]
-        today_status = clan.get_today_record_status(uid)
-        boss_status = clan.get_current_boss_state()[challenge_boss-1]
-        if today_status.last_is_addition:
-            record_type = "补偿刀"
+        if item.is_proxy_report:
+            joined_clan = clanbattle.get_joined_clan(item.proxy_report_member)
+            if not item.clan_gid in joined_clan:
+                return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        challenge_boss = int(item.target_boss)
+        proxy_report_uid = item.proxy_report_member if item.is_proxy_report else None
+        comment = item.comment if item.comment else None
+        force_use_full_chance = item.froce_use_full_chance
+        if not item.is_kill_boss:
+            challenge_damage = item.damage
         else:
-            record_type = "完整刀"
-        await bot.send_group_msg(group_id=item.clan_gid, message="网页上报数据：\n" + MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日第{today_status.today_challenged}刀，{record_type}\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
-        return{"err_code": 0}
-    elif result == CommitRecordResult.illegal_damage_inpiut:
-        return{"err_code": 403, "msg": "上报的伤害格式不合法"}
-    elif result == CommitRecordResult.damage_out_of_hp:
-        return{"err_code": 403, "msg": "上报的伤害超出了boss血量，如已击杀请使用尾刀指令"}
-    elif result == CommitRecordResult.check_record_legal_failed:
-        return{"err_code": 403, "msg": "上报数据合法性检查错误，请检查是否正确上报"}
-    elif result == CommitRecordResult.member_not_in_clan:
-        return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+            boss_status = clan.get_current_boss_state()[challenge_boss-1]
+            challenge_damage = str(boss_status.boss_hp)
+        if item.is_proxy_report:
+            result = await clan.commit_record(proxy_report_uid, challenge_boss, challenge_damage, comment, uid, force_use_full_chance)
+            uid = proxy_report_uid
+        else:
+            result = await clan.commit_record(uid, challenge_boss, challenge_damage, comment, None, force_use_full_chance)
+        bot: Bot = list(nonebot.get_bots().values())[0]
+        if result == CommitRecordResult.success:
+            record = clan.get_recent_record(uid)[0]
+            today_status = clan.get_today_record_status(uid)
+            boss_status = clan.get_current_boss_state()[challenge_boss-1]
+            if today_status.last_is_addition:
+                record_type = "补偿刀"
+            else:
+                record_type = "完整刀"
+            await bot.send_group_msg(group_id=item.clan_gid, message="网页上报数据：\n" + MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日第{today_status.today_challenged}刀，{record_type}\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
+            return{"err_code": 0}
+        elif result == CommitRecordResult.illegal_damage_inpiut:
+            return{"err_code": 403, "msg": "上报的伤害格式不合法"}
+        elif result == CommitRecordResult.damage_out_of_hp:
+            return{"err_code": 403, "msg": "上报的伤害超出了boss血量，如已击杀请使用尾刀指令"}
+        elif result == CommitRecordResult.check_record_legal_failed:
+            return{"err_code": 403, "msg": "上报数据合法性检查错误，请检查是否正确上报"}
+        elif result == CommitRecordResult.member_not_in_clan:
+            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
 
-@app.post("/api/clanbattle/report_queue")
-async def _(item: WebReportQueue, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    challenge_boss = int(item.target_boss)
-    comment = item.comment if item.comment else None
-    result = clan.commit_battle_in_progress(uid, challenge_boss, comment)
-    bot: Bot = list(nonebot.get_bots().values())[0]
-    if result == CommitInProgressResult.success:
-        await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"开始挑战{challenge_boss}王")
-        return{"err_code": 0}
-    elif result == CommitInProgressResult.already_in_battle:
-        return{"err_code": 403, "msg": "您已经有正在挑战的boss"}
-    elif result == CommitInProgressResult.illegal_target_boss:
-        return{"err_code": 403, "msg": "您目前无法挑战这个boss"}
-    elif result == CommitInProgressResult.member_not_in_clan:
-        return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
-
-
-@app.post("/api/clanbattle/report_subscribe")
-async def _(item: WebReportSubscribe, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    challenge_boss = int(item.target_boss)
-    cycle = int(item.target_cycle)
-    comment = item.comment if item.comment else None
-    result = clan.commit_batle_subscribe(uid, challenge_boss, cycle, comment)
-    bot: Bot = list(nonebot.get_bots().values())[0]
-    if result == CommitSubscribeResult.success:
-        await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"预约了{cycle}周目{challenge_boss}王")
-        return{"err_code": 0}
-    elif result == CommitSubscribeResult.already_in_progress:
-        return{"err_code": 403, "msg": "您已经正在挑战这个boss了"}
-    elif result == CommitSubscribeResult.already_subscribed:
-        return{"err_code": 403, "msg": "您已经预约了这个boss了"}
-    elif result == CommitSubscribeResult.boss_cycle_already_killed:
-        return{"err_code": 403, "msg": "boss已经死亡，请刷新页面重新查看"}
-    elif result == CommitSubscribeResult.member_not_in_clan:
-        return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
-
-
-@app.post("/api/clanbattle/report_unsubscribe")
-async def _(item: WebReportSubscribe, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    challenge_boss = int(item.target_boss)
-    cycle = int(item.target_cycle)
-    result = clan.delete_battle_subscribe(uid, challenge_boss, cycle)
-    if result:
-        return{"err_code": 0}
-    else:
-        return{"err_code": 403, "msg": "取消预约失败，请确认您已经预约该boss喵"}
-
-
-@app.post("/api/clanbattle/report_ontree")
-async def _(item: WebReportOnTree, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    boss = int(item.boss)
-    comment = item.comment if item.comment else None
-    result = clan.commit_battle_on_tree(uid, boss, comment)
-    if result == CommitBattlrOnTreeResult.success:
-        return{"err_code": 0}
-    elif result == CommitBattlrOnTreeResult.already_in_other_boss_progress:
-        return{"err_code": 403, "msg": "您正在挑战其他Boss，无法在这里挂树哦"}
-    elif result == CommitBattlrOnTreeResult.already_on_tree:
-        return{"err_code": 403, "msg": "您已经在树上了，不用再挂了"}
-    elif result == CommitBattlrOnTreeResult.member_not_in_clan:
-        return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
-
-
-@app.post("/api/clanbattle/report_sl")
-async def _(item: WebReportSL, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    if item.is_proxy_report:
-        joined_clan = clanbattle.get_joined_clan(item.proxy_report_uid)
+    @app.post("/api/clanbattle/report_queue")
+    async def _(item: WebReportQueue, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
         if not item.clan_gid in joined_clan:
             return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    boss = int(item.boss)
-    proxy_report_uid = item.proxy_report_uid if item.is_proxy_report else None
-    comment = item.comment if item.comment else None
-    if item.is_proxy_report:
-        result = clan.commit_battle_sl(proxy_report_uid, boss, comment, uid)
-    else:
-        result = clan.commit_battle_sl(uid, boss, comment, proxy_report_uid)
-    if result == CommitSLResult.success:
-        return{"err_code": 0}
-    elif result == CommitSLResult.illegal_target_boss:
-        return{"err_code": 403, "msg": "您还不能在这个boss上sl"}
-    elif result == CommitSLResult.already_sl:
-        return{"err_code": 403, "msg": "您今天已经使用过SL了"}
-    elif result == CommitSLResult.member_not_in_clan:
-        return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        challenge_boss = int(item.target_boss)
+        comment = item.comment if item.comment else None
+        result = clan.commit_battle_in_progress(uid, challenge_boss, comment)
+        bot: Bot = list(nonebot.get_bots().values())[0]
+        if result == CommitInProgressResult.success:
+            await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"开始挑战{challenge_boss}王")
+            return{"err_code": 0}
+        elif result == CommitInProgressResult.already_in_battle:
+            return{"err_code": 403, "msg": "您已经有正在挑战的boss"}
+        elif result == CommitInProgressResult.illegal_target_boss:
+            return{"err_code": 403, "msg": "您目前无法挑战这个boss"}
+        elif result == CommitInProgressResult.member_not_in_clan:
+            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
 
-@app.post("/api/clanbattle/query_record")
-async def _(item: WebQueryReport, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    uid = item.member if item.member != '' else None
-    boss = int(item.boss) if item.boss != '' else None
-    cycle = int(item.cycle) if item.cycle != '' else None
-    if item.date and item.date != '':
-        day_data = item.date.split('T')[0]
-        detla = datetime.timedelta(
-            hours=9) if clan.clan_info.clan_type == "jp" else datetime.timedelta(hours=8)
-        now_time_today = datetime.datetime.strptime(
-            day_data, "%Y-%m-%d") + datetime.timedelta(days=1)
-        start_time = now_time_today + datetime.timedelta(hours=5) - detla
-        end_time = now_time_today + datetime.timedelta(hours=29) - detla
-    else:
-        start_time = None
-        end_time = None
-    record_list = []
-    records = clan.get_record(uid=uid, boss=boss, cycle=cycle,
-                              start_time=start_time, end_time=end_time, time_desc=True)
-    if not records:
-        return {"err_code": 0, "record": []}
-    for record in records:
-        record_list.append(model_to_dict(record))
-    return {"err_code": 0, "record": record_list}
+    @app.post("/api/clanbattle/report_subscribe")
+    async def _(item: WebReportSubscribe, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        challenge_boss = int(item.target_boss)
+        cycle = int(item.target_cycle)
+        comment = item.comment if item.comment else None
+        result = clan.commit_batle_subscribe(uid, challenge_boss, cycle, comment)
+        bot: Bot = list(nonebot.get_bots().values())[0]
+        if result == CommitSubscribeResult.success:
+            await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"预约了{cycle}周目{challenge_boss}王")
+            return{"err_code": 0}
+        elif result == CommitSubscribeResult.already_in_progress:
+            return{"err_code": 403, "msg": "您已经正在挑战这个boss了"}
+        elif result == CommitSubscribeResult.already_subscribed:
+            return{"err_code": 403, "msg": "您已经预约了这个boss了"}
+        elif result == CommitSubscribeResult.boss_cycle_already_killed:
+            return{"err_code": 403, "msg": "boss已经死亡，请刷新页面重新查看"}
+        elif result == CommitSubscribeResult.member_not_in_clan:
+            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
 
-@app.post("/api/clanbattle/change_current_clanbattle_data_num")
-async def _(item: WebSetClanbattleData, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    if not clan.check_admin_permission(str(uid)):
-        return {"err_code": -2, "msg": "您不是会战管理员，无权切换会战档案"}
-    clan.set_current_clanbattle_data(item.data_num)
-    bot: Bot = list(nonebot.get_bots().values())[0]
-    gid = clan.clan_info.clan_gid
-    await bot.send_group_msg(group_id=gid, message=f"会战管理员已经将会战档案切换为{item.data_num}，请注意")
-    return {"err_code": 0, "msg": "设置成功"}
-
-
-@app.post("/api/clanbattle/battle_status")
-async def _(item: WebQueryChallengeStatusForm, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    status_list = []
-    members = clan.get_clan_members()
-    for member in members:
-        if not item.date:
-            status = clan.get_today_record_status(member)
+    @app.post("/api/clanbattle/report_unsubscribe")
+    async def _(item: WebReportSubscribe, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        challenge_boss = int(item.target_boss)
+        cycle = int(item.target_cycle)
+        result = clan.delete_battle_subscribe(uid, challenge_boss, cycle)
+        if result:
+            return{"err_code": 0}
         else:
+            return{"err_code": 403, "msg": "取消预约失败，请确认您已经预约该boss喵"}
+
+
+    @app.post("/api/clanbattle/report_ontree")
+    async def _(item: WebReportOnTree, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        boss = int(item.boss)
+        comment = item.comment if item.comment else None
+        result = clan.commit_battle_on_tree(uid, boss, comment)
+        if result == CommitBattlrOnTreeResult.success:
+            return{"err_code": 0}
+        elif result == CommitBattlrOnTreeResult.already_in_other_boss_progress:
+            return{"err_code": 403, "msg": "您正在挑战其他Boss，无法在这里挂树哦"}
+        elif result == CommitBattlrOnTreeResult.already_on_tree:
+            return{"err_code": 403, "msg": "您已经在树上了，不用再挂了"}
+        elif result == CommitBattlrOnTreeResult.member_not_in_clan:
+            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+
+
+    @app.post("/api/clanbattle/report_sl")
+    async def _(item: WebReportSL, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        if item.is_proxy_report:
+            joined_clan = clanbattle.get_joined_clan(item.proxy_report_uid)
+            if not item.clan_gid in joined_clan:
+                return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        boss = int(item.boss)
+        proxy_report_uid = item.proxy_report_uid if item.is_proxy_report else None
+        comment = item.comment if item.comment else None
+        if item.is_proxy_report:
+            result = clan.commit_battle_sl(proxy_report_uid, boss, comment, uid)
+        else:
+            result = clan.commit_battle_sl(uid, boss, comment, proxy_report_uid)
+        if result == CommitSLResult.success:
+            return{"err_code": 0}
+        elif result == CommitSLResult.illegal_target_boss:
+            return{"err_code": 403, "msg": "您还不能在这个boss上sl"}
+        elif result == CommitSLResult.already_sl:
+            return{"err_code": 403, "msg": "您今天已经使用过SL了"}
+        elif result == CommitSLResult.member_not_in_clan:
+            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+
+
+    @app.post("/api/clanbattle/query_record")
+    async def _(item: WebQueryReport, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        uid = item.member if item.member != '' else None
+        boss = int(item.boss) if item.boss != '' else None
+        cycle = int(item.cycle) if item.cycle != '' else None
+        if item.date and item.date != '':
             day_data = item.date.split('T')[0]
             detla = datetime.timedelta(
                 hours=9) if clan.clan_info.clan_type == "jp" else datetime.timedelta(hours=8)
@@ -492,73 +450,124 @@ async def _(item: WebQueryChallengeStatusForm, session: str = Cookie(None)):
                 day_data, "%Y-%m-%d") + datetime.timedelta(days=1)
             start_time = now_time_today + datetime.timedelta(hours=5) - detla
             end_time = now_time_today + datetime.timedelta(hours=29) - detla
-            status = clan.get_record_status(member, start_time, end_time)
-        status_list.append(status)
-    return {"err_code": 0, "status": status_list}
+        else:
+            start_time = None
+            end_time = None
+        record_list = []
+        records = clan.get_record(uid=uid, boss=boss, cycle=cycle,
+                                start_time=start_time, end_time=end_time, time_desc=True)
+        if not records:
+            return {"err_code": 0, "record": []}
+        for record in records:
+            record_list.append(model_to_dict(record))
+        return {"err_code": 0, "record": record_list}
 
 
-@app.post("/api/clanbattle/notice_member")
-async def _(item: WebNoticeChallengeForm, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    if not clan.check_admin_permission(str(uid)):
-        return {"err_code": -2, "msg": "您不是会战管理员，无权提醒其他成员出刀"}
-    notice_list = []
-    for key in item.notice_member:
-        if item.notice_member[key] == True:
-            if clan.check_joined_clan(key):
-                notice_list.append(key)
-    bot: Bot = list(nonebot.get_bots().values())[0]
-    notice_message = Message("管理员催你快去出刀啦")
-    for member in notice_list:
-        notice_message += MessageSegment.at(member)
-        if len(notice_message) == 20:
-            await bot.send_group_msg(group_id=item.clan_gid, message=notice_message)
-            notice_message = Message("管理员催你快去出刀啦")
-    if len(notice_message) > 1:
-        await bot.send_group_msg(group_id=item.clan_gid, message=notice_message)
-    return {"err_code": 0}
-
-
-@app.post("/api/clanbattle/remove_clan_member")
-async def _(item: WebRemoveClanMember, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    if not clan.check_admin_permission(str(uid)):
-        return {"err_code": -2, "msg": "您不是会战管理员，无权将其他成员移出公会"}
-    remove_uid = item.remove_member
-    bot: Bot = list(nonebot.get_bots().values())[0]
-    if clan.delete_clan_member(remove_uid):
-        await bot.send_group_msg(group_id=item.clan_gid, message=f"会战管理员通过网页将成员{remove_uid}移出公会")
-        return {"err_code": 0}
-    else:
-        return {"err_code": 403, "msg": "移出公会失败，Ta可能还未加入公会？请尝试刷新页面！"}
-
-
-@app.post("/api/clanbattle/change_boss_status")
-async def _(item: WebChangeBossStatus, session: str = Cookie(None)):
-    if not (uid := WebAuth.check_session_valid(session)):
-        return {"err_code": -1, "msg": "会话错误，请重新登录"}
-    joined_clan = clanbattle.get_joined_clan(uid)
-    if not item.clan_gid in joined_clan:
-        return {"err_code": 403, "msg": "您还没有加入该公会"}
-    clan = clanbattle.get_clan_data(item.clan_gid)
-    if not clan.check_admin_permission(str(uid)):
-        return {"err_code": -2, "msg": "您不是会战管理员，无权调整boss状态"}
-    if clan.commit_force_change_boss_status(int(item.boss), int(item.cycle), item.remain_hp):
+    @app.post("/api/clanbattle/change_current_clanbattle_data_num")
+    async def _(item: WebSetClanbattleData, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        if not clan.check_admin_permission(str(uid)):
+            return {"err_code": -2, "msg": "您不是会战管理员，无权切换会战档案"}
+        clan.set_current_clanbattle_data(item.data_num)
         bot: Bot = list(nonebot.get_bots().values())[0]
-        await bot.send_group_msg(group_id=item.clan_gid, message=f"会战管理员通过网页将{item.boss}王调整至{item.cycle}周目，剩余生命值{item.remain_hp}")
+        gid = clan.clan_info.clan_gid
+        await bot.send_group_msg(group_id=gid, message=f"会战管理员已经将会战档案切换为{item.data_num}，请注意")
+        return {"err_code": 0, "msg": "设置成功"}
+
+
+    @app.post("/api/clanbattle/battle_status")
+    async def _(item: WebQueryChallengeStatusForm, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        status_list = []
+        members = clan.get_clan_members()
+        for member in members:
+            if not item.date:
+                status = clan.get_today_record_status(member)
+            else:
+                day_data = item.date.split('T')[0]
+                detla = datetime.timedelta(
+                    hours=9) if clan.clan_info.clan_type == "jp" else datetime.timedelta(hours=8)
+                now_time_today = datetime.datetime.strptime(
+                    day_data, "%Y-%m-%d") + datetime.timedelta(days=1)
+                start_time = now_time_today + datetime.timedelta(hours=5) - detla
+                end_time = now_time_today + datetime.timedelta(hours=29) - detla
+                status = clan.get_record_status(member, start_time, end_time)
+            status_list.append(status)
+        return {"err_code": 0, "status": status_list}
+
+
+    @app.post("/api/clanbattle/notice_member")
+    async def _(item: WebNoticeChallengeForm, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        if not clan.check_admin_permission(str(uid)):
+            return {"err_code": -2, "msg": "您不是会战管理员，无权提醒其他成员出刀"}
+        notice_list = []
+        for key in item.notice_member:
+            if item.notice_member[key] == True:
+                if clan.check_joined_clan(key):
+                    notice_list.append(key)
+        bot: Bot = list(nonebot.get_bots().values())[0]
+        notice_message = Message("管理员催你快去出刀啦")
+        for member in notice_list:
+            notice_message += MessageSegment.at(member)
+            if len(notice_message) == 20:
+                await bot.send_group_msg(group_id=item.clan_gid, message=notice_message)
+                notice_message = Message("管理员催你快去出刀啦")
+        if len(notice_message) > 1:
+            await bot.send_group_msg(group_id=item.clan_gid, message=notice_message)
         return {"err_code": 0}
-    else:
-        return {"err_code": 403, "msg": "调整状态出现错误"}
+
+
+    @app.post("/api/clanbattle/remove_clan_member")
+    async def _(item: WebRemoveClanMember, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        if not clan.check_admin_permission(str(uid)):
+            return {"err_code": -2, "msg": "您不是会战管理员，无权将其他成员移出公会"}
+        remove_uid = item.remove_member
+        bot: Bot = list(nonebot.get_bots().values())[0]
+        if clan.delete_clan_member(remove_uid):
+            await bot.send_group_msg(group_id=item.clan_gid, message=f"会战管理员通过网页将成员{remove_uid}移出公会")
+            return {"err_code": 0}
+        else:
+            return {"err_code": 403, "msg": "移出公会失败，Ta可能还未加入公会？请尝试刷新页面！"}
+
+
+    @app.post("/api/clanbattle/change_boss_status")
+    async def _(item: WebChangeBossStatus, session: str = Cookie(None)):
+        if not (uid := WebAuth.check_session_valid(session)):
+            return {"err_code": -1, "msg": "会话错误，请重新登录"}
+        joined_clan = clanbattle.get_joined_clan(uid)
+        if not item.clan_gid in joined_clan:
+            return {"err_code": 403, "msg": "您还没有加入该公会"}
+        clan = clanbattle.get_clan_data(item.clan_gid)
+        if not clan.check_admin_permission(str(uid)):
+            return {"err_code": -2, "msg": "您不是会战管理员，无权调整boss状态"}
+        if clan.commit_force_change_boss_status(int(item.boss), int(item.cycle), item.remain_hp):
+            bot: Bot = list(nonebot.get_bots().values())[0]
+            await bot.send_group_msg(group_id=item.clan_gid, message=f"会战管理员通过网页将{item.boss}王调整至{item.cycle}周目，剩余生命值{item.remain_hp}")
+            return {"err_code": 0}
+        else:
+            return {"err_code": 403, "msg": "调整状态出现错误"}
 
 
 class clanbattle_qq:

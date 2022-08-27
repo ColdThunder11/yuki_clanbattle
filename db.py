@@ -1,5 +1,6 @@
 #import redis
 import datetime
+import sys
 
 from os import path
 from enum import unique
@@ -10,8 +11,12 @@ redis_db = 2
 
 #redis_instance = redis.StrictRedis(host='localhost', port=6379, db=redis_db)
 
-db_path = path.join(path.dirname(__file__),
-                    "clanbattle.db").replace(":\\", ":\\\\")
+if not "pytest" in sys.modules:
+    db_path = path.join(path.dirname(__file__),
+                        "clanbattle.db").replace(":\\", ":\\\\")
+else:
+        db_path = path.join(path.dirname(__file__),
+                        "clanbattle_test.db").replace(":\\", ":\\\\")
 
 sqlite_db = SqliteDatabase(db_path)
 #db = SqliteDatabase(r"d:\\Code\nb2_pcr_clanbattle_bot\plugins\clanbattle\clanbattle.db")
