@@ -67,7 +67,7 @@ if not "pytest" in sys.modules:
         # mount static file if exsist
         static_file_path = os.path.join(os.path.dirname(__file__), "dist")
         if os.path.isdir(static_file_path):
-            app.mount("/", StaticFiles(directory=static_file_path),
+            app.mount("/", StaticFiles(directory=static_file_path, html=True),
                       name="static")
 else:
     load_config()
