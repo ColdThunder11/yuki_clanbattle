@@ -1487,4 +1487,22 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State =
         await clanbattle_qq.delete_clan.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
     query_num = int(state['_matched_groups'][0]) if state['_matched_groups'][0] else None
     query_remain = True if state['_matched_groups'][1] else False
+    if query_num:
+        msg = f"今日已出{query_num}刀的有：\n"
+        status = clan.get_today_member_status()
+        for member_state in status:
+            if member_state.today_challenged == query_num:
+                msg += f"{clan.get_user_name(member_state.uid)}、"
+        if msg == f"今日已出{query_num}刀的有：\n":
+            msg = f"今天还没有人已经出了{query_num}刀"
+        await clanbattle_qq.delete_clan.finish(msg.strip('、'))
+    if query_remain:
+        msg = f"今日未出补偿刀的有：\n"
+        status = clan.get_today_member_status()
+        for member_state in status:
+            if member_state.remain_addition_challeng == query_num:
+                msg += f"{clan.get_user_name(member_state.uid)}、"
+        if msg == f"今日未出补偿刀的有：\n":
+            msg = f"现在没有剩余的补偿刀！"
+        await clanbattle_qq.delete_clan.finish(msg.strip('、'))
     await clanbattle_qq.delete_clan.finish("清除公会数据成功")
