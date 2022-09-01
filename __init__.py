@@ -589,6 +589,7 @@ class clanbattle_qq:
     force_change_boss_status = worker.on_regex(
         r"^修改进度 ?([1-5]{1}) ([0-9]{1,3}) (\d+[EeKkWwBb]{0,2})$")
     delete_clan = worker.on_regex(r"清除公会数据")
+    query_certain_num = worker.on_regex(r"查([0-3]{1})|(补偿)刀")
     #killcalc = worker.on_regex(r"^合刀( )?(\d+) (\d+) (\d+)( \d+)?$")
 
 
@@ -1473,4 +1474,17 @@ async def delete_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State
     if not clan.check_admin_permission(uid):
         await clanbattle_qq.delete_clan.finish("您不是会战管理员，无权使用本指令")
     clanbattle.delete_clan(gid)
+    await clanbattle_qq.delete_clan.finish("清除公会数据成功")
+
+@clanbattle_qq.query_certain_num.handle()
+async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+    gid = str(event.group_id)
+    uid = str(event.user_id)
+    clan = clanbattle.get_clan_data(gid)
+    if not clan:
+        await clanbattle_qq.delete_clan.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
+    if not clan.check_joined_clan(str(event.user_id)):
+        await clanbattle_qq.delete_clan.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
+    query_num = int(state['_matched_groups'][0]) if state['_matched_groups'][0] else None
+    query_remain = True if state['_matched_groups'][1] else False
     await clanbattle_qq.delete_clan.finish("清除公会数据成功")

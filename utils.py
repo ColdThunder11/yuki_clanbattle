@@ -569,6 +569,14 @@ class ClanBattleData:
     def get_today_record_status(self, uid: str) -> TodayBattleStatus:
         return self.get_record_status(uid)
 
+    def get_today_member_status(self) -> List[TodayBattleStatus]:
+        ret_status = []
+        members = self.get_clan_members()
+        for member in members:
+            status = self.get_today_record_status(member)
+            ret_status.append(status)
+        return ret_status
+
     # 完整刀 补偿刀
     def get_today_record_status_total(self) -> Tuple[int, int]:
         today_record = self.get_today_record()
@@ -953,12 +961,14 @@ class WebAuth:
     @staticmethod
     def check_password(uid: str, password: str) -> bool:
         user: User = User.get(User.qq_uid == uid)
-        if user.password and user.password == hashlib.md5((password+get_config().db_salt).encode("utf-8")).hexdigest():
-            return True
+        if user.password:
+            if user.password == hashlib.md5((password+get_config().db_salt).encode("utf-8")).hexdigest():
+                return True
         return False
 
     @staticmethod
     def set_password(uid: str, password: str):
+        password = hashlib.md5((password+"sa823bs7ty1d1293asiu7ysaas").encode("utf-8")).hexdigest()
         password_md5 = hashlib.md5(
             (password+get_config().db_salt).encode("utf-8")).hexdigest()
         user: User = User.select().where(User.qq_uid == uid).get()
