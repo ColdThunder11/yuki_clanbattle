@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 clanbattle.db
+clanbattle_test.db
 config.json

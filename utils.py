@@ -23,24 +23,25 @@ import uuid
 import hashlib
 import pydantic
 
-db_salt = "114514"
+from .config import get_config
+
 
 class BossInfo(pydantic.BaseModel):
     class BossAreaInfo(pydantic.BaseModel):
-        jp:List[List[int]]
-        tw:List[List[int]]
-        cn:List[List[int]]
+        jp: List[List[int]]
+        tw: List[List[int]]
+        cn: List[List[int]]
 
     class BossCycleInfo(pydantic.BaseModel):
-        jp:List[int]
-        tw:List[int]
-        cn:List[int]
+        jp: List[int]
+        tw: List[int]
+        cn: List[int]
 
     boss: BossAreaInfo
     cycle: BossCycleInfo
 
 
-boss_info:BossInfo = None
+boss_info: dict = None
 
 
 class BossStatus:
@@ -206,7 +207,8 @@ class ClanBattleData:
 
     @staticmethod
     def delete_clan(gid: str):
-        ClanInfo.delete().where(clan_gid=gid)
+        qry = ClanInfo.delete().where(ClanInfo.clan_gid == gid)
+        qry.execute()
 
     @staticmethod
     def get_user_info(uid: str) -> User:
@@ -284,21 +286,26 @@ class ClanBattleData:
     @clear_cache
     def clear_current_clanbattle_data(self):
         clan_record = self.get_record()
-        for record in clan_record:
-            record.delete_instance()
+        if clan_record:
+            for record in clan_record:
+                record.delete_instance()
         clan_in_progress = self.get_battle_in_progress()
-        for in_progress in clan_in_progress:
-            in_progress.delete_instance()
+        if clan_in_progress:
+            for in_progress in clan_in_progress:
+                in_progress.delete_instance()
         clan_sl = BattleSL.select().where((BattleSL.clan_gid == self.clan_info.clan_gid)
                                           & (BattleSL.using_data_num == self.clan_info.current_using_data_num))
-        for sl in clan_sl:
-            sl.delete_instance()
+        if clan_sl:
+            for sl in clan_sl:
+                sl.delete_instance()
         clan_battle_subscribe = self.get_battle_subscribe()
-        for battle_subscribe in clan_battle_subscribe:
-            battle_subscribe.delete_instance()
+        if clan_battle_subscribe:
+            for battle_subscribe in clan_battle_subscribe:
+                battle_subscribe.delete_instance()
         battle_on_tree = self.get_battle_on_tree()
-        for on_tree in battle_on_tree:
-            on_tree.delete_instance()
+        if battle_on_tree:
+            for on_tree in battle_on_tree:
+                on_tree.delete_instance()
 
     @clear_cache
     def rename_clan(self, name: str):
@@ -629,6 +636,28 @@ class ClanBattleData:
                         result.target_boss, boss_cycle, boss_stage, result.boss_hp-result.damage, boss_info["boss"][self.clan_info.clan_type][boss_stage-1][result.target_boss-1]))
         return ret_list
 
+    @cache_return
+    def get_current_boss_state_cn(self) -> BossStatus:
+        if self.clan_info.clan_type != "cn":
+            raise Exception()
+        else:
+            recent_record = self.get_recent_record()
+            if not recent_record:
+                return BossStatus(1, 1, 1, boss_info["boss"][self.clan_info.clan_type][0][0], boss_info["boss"][self.clan_info.clan_type][0][0])
+            else:
+                result = recent_record[0]
+                if result.boss_hp == result.damage:
+                    target_boss = result.target_boss + 1 if result.target_boss < 5 else 1
+                    boss_cycle = result.target_cycle if target_boss != 1 else result.target_cycle + 1
+                    boss_stage = self.get_cycle_stage(boss_cycle)
+                    return BossStatus(target_boss, boss_cycle, boss_stage,
+                                      boss_info["boss"][self.clan_info.clan_type][boss_stage-1][target_boss-1], boss_info["boss"][self.clan_info.clan_type][boss_stage-1][target_boss-1])
+                else:
+                    boss_cycle = result.target_cycle
+                    boss_stage = self.get_cycle_stage(boss_cycle)
+                    return BossStatus(
+                        result.target_boss, boss_cycle, boss_stage, result.boss_hp-result.damage, boss_info["boss"][self.clan_info.clan_type][boss_stage-1][result.target_boss-1])
+
     async def boss_kill_process(self, uid: str, boss: int, proxy_report_uid: str):
         bot: Bot = list(nonebot.get_bots().values())[0]
         gid = self.clan_info.clan_gid
@@ -673,18 +702,35 @@ class ClanBattleData:
             except:
                 pass
         # 处理可以出刀提醒
-        if current_max_challenge_cycle > previous_max_challenge_cycle:
+        if self.clan_info.clan_type != "cn":
+            if current_max_challenge_cycle > previous_max_challenge_cycle:
+                msg = Message("现在可以出刀了")
+                processed_uids = []
+                for boss_state in current_boss_status:
+                    if boss_state.target_cycle == current_max_challenge_cycle:
+                        if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
+                            for sub_record in sub_records:
+                                if not str(sub_record.member_uid) in processed_uids:
+                                    processed_uids.append(
+                                        str(sub_record.member_uid))
+                                    msg += MessageSegment.at(
+                                        str(sub_record.member_uid))
+                if len(msg) > 1:
+                    try:
+                        await bot.send_group_msg(group_id=gid, message=msg)
+                    except:
+                        pass
+        else:  # cn 出刀提醒
             msg = Message("现在可以出刀了")
             processed_uids = []
-            for boss_state in current_boss_status:
-                if boss_state.target_cycle == current_max_challenge_cycle:
-                    if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
-                        for sub_record in sub_records:
-                            if not str(sub_record.member_uid) in processed_uids:
-                                processed_uids.append(
-                                    str(sub_record.member_uid))
-                                msg += MessageSegment.at(
-                                    str(sub_record.member_uid))
+            boss_state = self.get_current_boss_state_cn()
+            if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
+                for sub_record in sub_records:
+                    if not str(sub_record.member_uid) in processed_uids:
+                        processed_uids.append(
+                            str(sub_record.member_uid))
+                        msg += MessageSegment.at(
+                            str(sub_record.member_uid))
             if len(msg) > 1:
                 try:
                     await bot.send_group_msg(group_id=gid, message=msg)
@@ -716,9 +762,20 @@ class ClanBattleData:
     def check_boss_challengeable(self, target_cycle: int, target_boss: int):
         boss_state = self.get_current_boss_state()
         challenge_boss_state = boss_state[target_boss - 1]
-        if target_cycle <= self.get_max_challenge_boss_cycle(boss_state) and challenge_boss_state.target_cycle == target_cycle:
-            return True
-        return False
+        if self.clan_info.clan_type != "cn":
+            if target_cycle <= self.get_max_challenge_boss_cycle(boss_state) and challenge_boss_state.target_cycle == target_cycle:
+                return True
+            return False
+        else:
+            max_cycle = boss_state[0].target_cycle
+            for boss_status in boss_state:
+                if boss_status.target_cycle < max_cycle:
+                    if target_boss == boss_status.target_boss and target_cycle == boss_status.target_cycle:
+                        return True
+                max_cycle = boss_status.target_cycle if boss_status.target_cycle > max_cycle else max_cycle
+            if max_cycle == boss_state[0].target_cycle and target_boss == boss_status.target_boss:
+                return True
+            return False
 
     def check_new_record_legal(self, uid: str, target_cycle: int, target_boss: int, damage: int) -> NewRecordLegalCheckResult:
         boss_state = self.get_current_boss_state()
@@ -888,20 +945,29 @@ class ClanBattle:
         ClanBattleData.create_clan(gid, clan_name, clan_type, clan_admin)
         self.get_clan_data(gid)
 
+    def delete_clan(self, gid: str):
+        clan = self.get_clan_data(gid)
+        clan.clear_current_clanbattle_data()
+        members = clan.get_clan_members()
+        for member in members:
+            clan.delete_clan_member(member)
+        ClanBattleData.delete_clan(gid)
+        del self.clan_data_dict[gid]
+
 
 class WebAuth:
 
     @staticmethod
     def check_password(uid: str, password: str) -> bool:
         user: User = User.get(User.qq_uid == uid)
-        if user.password and user.password == hashlib.md5((password+db_salt).encode("utf-8")).hexdigest():
+        if user.password and user.password == hashlib.md5((password+get_config().db_salt).encode("utf-8")).hexdigest():
             return True
         return False
 
     @staticmethod
     def set_password(uid: str, password: str):
         password_md5 = hashlib.md5(
-            (password+db_salt).encode("utf-8")).hexdigest()
+            (password+get_config().db_salt).encode("utf-8")).hexdigest()
         user: User = User.select().where(User.qq_uid == uid).get()
         user.password = password_md5
         user.save()
@@ -965,3 +1031,8 @@ class Tools:
             index -= 3
             num_list.insert(index, ",")
         return "".join(num_list)
+
+    @staticmethod
+    def update_boss_info():
+        global boss_info
+        boss_info = get_config().boss_info

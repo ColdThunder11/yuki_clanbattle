@@ -1,10 +1,13 @@
 #import redis
 import datetime
 import sys
+import os
 
 from os import path
 from enum import unique
 from peewee import *
+
+from .config import clanbattle_config
 
 
 redis_db = 2
@@ -15,7 +18,7 @@ if not "pytest" in sys.modules:
     db_path = path.join(path.dirname(__file__),
                         "clanbattle.db").replace(":\\", ":\\\\")
 else:
-        db_path = path.join(path.dirname(__file__),
+    db_path = path.join(path.dirname(__file__),
                         "clanbattle_test.db").replace(":\\", ":\\\\")
 
 sqlite_db = SqliteDatabase(db_path)
