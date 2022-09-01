@@ -23,6 +23,7 @@ from nonebot.params import State
 
 from fastapi import FastAPI, Request, Path, Response, Cookie, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse
 
 from .utils import BossStatus, ClanBattle, ClanBattleData, CommitBattlrOnTreeResult, CommitInProgressResult, CommitRecordResult, CommitSLResult, CommitSubscribeResult, WebAuth
 from .utils import Tools
@@ -486,6 +487,15 @@ class WebPostRoute:
 
 
 if not "pytest" in sys.modules:
+
+    @app.get("/")
+    @app.get("/help")
+    @app.get("/login")
+    @app.get("/clan")
+    @app.get("/about")
+    @app.get("/userguide")
+    async def _():
+        return FileResponse(os.path.join(os.path.dirname(__file__), "dist/index.html"))
 
     @app.get("/api/clanbattle/{api_name}")
     async def _(api_name: str, response: Response, clan_gid: str = None, session: str = Cookie(None)):
