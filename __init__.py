@@ -1,11 +1,9 @@
 import asyncio
 import nonebot
-import json
 import datetime
 import inspect
 import os
 import sys
-import pydantic
 
 from typing import ForwardRef, _eval_type  # type: ignore
 from typing import Any, List, Dict, Type, Union, Optional, TYPE_CHECKING
@@ -27,7 +25,6 @@ from starlette.responses import FileResponse
 
 from .utils import BossStatus, ClanBattle, ClanBattleData, CommitBattlrOnTreeResult, CommitInProgressResult, CommitRecordResult, CommitSLResult, CommitSubscribeResult, WebAuth
 from .utils import Tools
-from .utils import BossInfo
 
 from .exception import WebsocketResloveException, WebsocketAuthException
 

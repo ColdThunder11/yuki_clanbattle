@@ -1,13 +1,8 @@
 #import redis
-import datetime
 import sys
-import os
 
 from os import path
-from enum import unique
 from peewee import *
-
-from .config import clanbattle_config
 
 
 redis_db = 2

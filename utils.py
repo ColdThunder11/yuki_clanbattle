@@ -1,8 +1,4 @@
-from re import I, T
 from peewee import *
-from collections import UserList, defaultdict
-from copy import deepcopy
-from operator import add, sub
 from typing import Dict, List
 import datetime
 import nonebot
@@ -10,11 +6,8 @@ from enum import Enum
 from functools import wraps
 
 from nonebot.adapters.onebot.v11 import Bot
-from fastapi.routing import serialize_response
 from nonebot.adapters.onebot.v11 import Message, MessageSegment
-from nonebot.exception import NoLogException
 from peewee import _BoundModelsContext
-from pkg_resources import set_extraction_path
 from .db import BaseModel, User, ClanInfo, BattleOnTree, BattleRecord, BattleInProgress, BattleSL, BattleSubscribe
 from .exception import ClanBattleException, ClanBattleDamageParseException
 from typing import Any, List, Union, Optional, Tuple
