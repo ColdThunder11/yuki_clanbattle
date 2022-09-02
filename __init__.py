@@ -225,6 +225,11 @@ class WebGetRoute:
         clan = clanbattle.get_clan_data(clan_gid)
         return {"err_code": 0, "area": clan.clan_info.clan_type}
 
+    @staticmethod
+    async def clan_name(uid: str, clan_gid: str):
+        clan = clanbattle.get_clan_data(clan_gid)
+        return {"err_code": 0, "clan_name": clan.clan_info.clan_name}
+
 
 class WebPostRoute:
     @staticmethod
@@ -590,6 +595,7 @@ class clanbattle_qq:
         r"^修改进度 ?([1-5]{1}) ([0-9]{1,3}) (\d+[EeKkWwBb]{0,2})$")
     delete_clan = worker.on_regex(r"清除公会数据")
     query_certain_num = worker.on_regex(r"查([0-3]{1})|(补偿)刀")
+    notice_not_report = worker.on_regex(r"催刀([0-2]{1})?")
     #killcalc = worker.on_regex(r"^合刀( )?(\d+) (\d+) (\d+)( \d+)?$")
 
 
@@ -1482,9 +1488,9 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State =
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(gid)
     if not clan:
-        await clanbattle_qq.delete_clan.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
+        await clanbattle_qq.query_certain_num.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if not clan.check_joined_clan(str(event.user_id)):
-        await clanbattle_qq.delete_clan.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
+        await clanbattle_qq.query_certain_num.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
     query_num = int(state['_matched_groups'][0]) if state['_matched_groups'][0] else None
     query_remain = True if state['_matched_groups'][1] else False
     if query_num:
@@ -1495,7 +1501,7 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State =
                 msg += f"{clan.get_user_name(member_state.uid)}、"
         if msg == f"今日已出{query_num}刀的有：\n":
             msg = f"今天还没有人已经出了{query_num}刀"
-        await clanbattle_qq.delete_clan.finish(msg.strip('、'))
+        await clanbattle_qq.query_certain_num.finish(msg.strip('、'))
     if query_remain:
         msg = f"今日未出补偿刀的有：\n"
         status = clan.get_today_member_status()
@@ -1504,5 +1510,30 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State =
                 msg += f"{clan.get_user_name(member_state.uid)}、"
         if msg == f"今日未出补偿刀的有：\n":
             msg = f"现在没有剩余的补偿刀！"
-        await clanbattle_qq.delete_clan.finish(msg.strip('、'))
-    await clanbattle_qq.delete_clan.finish("清除公会数据成功")
+        await clanbattle_qq.query_certain_num.finish(msg.strip('、'))
+
+@clanbattle_qq.notice_not_report.handle()
+async def notice_not_report(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+    gid = str(event.group_id)
+    uid = str(event.user_id)
+    clan = clanbattle.get_clan_data(gid)
+    if not clan:
+        await clanbattle_qq.notice_not_report.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
+    if not clan.check_joined_clan(str(event.user_id)):
+        await clanbattle_qq.notice_not_report.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
+    if not clan.check_admin_permission(uid):
+        await clanbattle_qq.notice_not_report.finish("您不是会战管理员，无权使用本指令")
+    notice_num = int(state['_matched_groups'][0]) if state['_matched_groups'][0] else 0
+    status = clan.get_today_member_status()
+    notice_list = []
+    for member_state in status:
+        if member_state.today_challenged <= notice_num:
+            notice_list.append(member_state.uid)
+    notice_message = Message("管理员催你快去出刀啦")
+    for member in notice_list:
+        notice_message += MessageSegment.at(member)
+        if len(notice_message) == 20:
+            await bot.send_group_msg(group_id=gid, message=notice_message)
+            notice_message = Message("管理员催你快去出刀啦")
+    if len(notice_message) > 1:
+        await bot.send_group_msg(group_id=gid, message=notice_message)
