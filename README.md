@@ -8,7 +8,7 @@ OneNot V11: `nonebot-adapter-onebot`
 ~~Telegram~~  
 # 安装
 1. 在开始安装插件前，请确保你已安装并部署 [NoneBot2](https://github.com/nonebot/nonebot2)，并已成功使 NoneBot 响应目标平台的指令  
-2. 在Bot插件目录执行命令`git clone https://github.com/ColdThunder11/yuki_clanbattle_web.git` 或 手动[下载mater分支源码](https://github.com/OREOCODEDEV/yuki_clanbattle/archive/refs/heads/master.zip)并解压到Bot插件目录  
+2. 在Bot插件目录执行命令`git clone https://github.com/ColdThunder11/yuki_clanbattle.git` 或 手动[下载mater分支源码](https://github.com/OREOCODEDEV/yuki_clanbattle/archive/refs/heads/master.zip)并解压到Bot插件目录  
 3. 前往[前端项目Action页面](https://github.com/ColdThunder11/yuki_clanbattle_web/actions)，并在最新 workflow 页面底部的 Artifacts 标签中下载最新构建  
 4. 解压上一步骤下载的文件至插件根目录`dist`文件夹中，此时该插件的部分文件树结构应为：  
     ```
