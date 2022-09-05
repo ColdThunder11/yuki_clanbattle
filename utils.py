@@ -685,20 +685,26 @@ class ClanBattleData:
             except:
                 pass
         # 处理当前boss正在出刀和预约
-        msg = Message("boss已被击败，无需继续挑战")
+        battle_subscribe_mention_qq_list, battle_in_progress_mention_qq_list = [], []
         if battle_subscribe_list:
             for battle_subscribe in battle_subscribe_list:
                 if battle_subscribe.target_cycle == current_boss_status[boss-1].target_cycle - 1:
                     if not battle_subscribe.member_uid in no_report_uid_list:
-                        msg += MessageSegment.at(battle_subscribe.member_uid)
+                        battle_subscribe_mention_qq_list.append(battle_subscribe.member_uid)
                     battle_subscribe.delete_instance()
         if battle_in_progress_list:
             for battle_in_progress in battle_in_progress_list:
                 if not battle_in_progress.member_uid in no_report_uid_list:
-                    msg += MessageSegment.at(battle_in_progress.member_uid)
+                    battle_in_progress_mention_qq_list.append(battle_in_progress.member_uid)
                 battle_in_progress.delete_instance()
-        if len(msg) > 1:
+        if battle_subscribe_mention_qq_list or battle_in_progress_mention_qq_list:
             try:
+                msg = Message()
+                if battle_subscribe_mention_qq_list:
+                    msg += MessageSegment.text(f"{boss}王已被击败\n") + Message(map(MessageSegment.at, battle_subscribe_mention_qq_list))
+                if battle_in_progress_mention_qq_list:
+                    if battle_in_progress_mention_qq_list: msg += MessageSegment.text("\n") # 同一消息内换行
+                    msg += MessageSegment.text("boss已被击败，无需继续挑战\n") + Message(map(MessageSegment.at, battle_in_progress_mention_qq_list))
                 await bot.send_group_msg(group_id=gid, message=msg)
             except:
                 pass
