@@ -4,7 +4,7 @@ Princess Connect Re:Dive clanbattle bot based on NoneBot2
 适用于公主连结的公会战管理机器人插件，基于 NoneBot2 ，同时支持新旧两种会战模式
 ### 注意：即使插件完全兼容 NoneBot2 ，由于插件功能相对独立性并且需要挂载根目录，不建议将其作为其他机器人的插件加载，插件也不会上传到 PyPI 和 NoneBot 商店，建议用单独的 NoneBot2 实例运行本插件
 # 平台支持
-OneNot V11: `nonebot-adapter-onebot`  
+OneBot V11: `nonebot-adapter-onebot`  
 ~~Telegram~~  
 # 安装
 1. 在开始安装插件前，请确保你已安装并部署 [NoneBot2](https://github.com/nonebot/nonebot2)，并已成功使 NoneBot 响应目标平台的指令  

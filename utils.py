@@ -672,71 +672,58 @@ class ClanBattleData:
         previous_max_challenge_cycle = self.get_max_challenge_boss_cycle(
             current_boss_status)
         current_boss_status[boss-1].target_cycle += 1
-        no_report_uid_list = (uid, proxy_report_uid)
+        no_report_uid_set = {uid, proxy_report_uid}
+        on_tree_mention_set = set()
+        battle_subscribe_mention_qq_set = set()
+        battle_in_progress_mention_qq_set = set()
+        battle_subscribe_able_challenge_set = set()
         # 处理挂树
-        if on_tree_list:
-            msg = Message("下树啦")
-            for on_tree in on_tree_list:
-                if not on_tree.member_uid in no_report_uid_list:
-                    msg += MessageSegment.at(on_tree.member_uid)
-                on_tree.delete_instance()
-            try:
-                await bot.send_group_msg(group_id=gid, message=msg)
-            except:
-                pass
+        for on_tree in on_tree_list:
+            on_tree_mention_set.add(on_tree.member_uid)
+            on_tree.delete_instance()
         # 处理当前boss正在出刀和预约
-        msg = Message("boss已被击败，无需继续挑战")
-        if battle_subscribe_list:
-            for battle_subscribe in battle_subscribe_list:
-                if battle_subscribe.target_cycle == current_boss_status[boss-1].target_cycle - 1:
-                    if not battle_subscribe.member_uid in no_report_uid_list:
-                        msg += MessageSegment.at(battle_subscribe.member_uid)
-                    battle_subscribe.delete_instance()
-        if battle_in_progress_list:
-            for battle_in_progress in battle_in_progress_list:
-                if not battle_in_progress.member_uid in no_report_uid_list:
-                    msg += MessageSegment.at(battle_in_progress.member_uid)
-                battle_in_progress.delete_instance()
-        if len(msg) > 1:
-            try:
-                await bot.send_group_msg(group_id=gid, message=msg)
-            except:
-                pass
+        for battle_subscribe in battle_subscribe_list:
+            if battle_subscribe.target_cycle != current_boss_status[boss-1].target_cycle - 1:
+                continue
+            battle_subscribe_mention_qq_set.add(str(battle_subscribe.member_uid))
+            battle_subscribe.delete_instance()
+        for battle_in_progress in battle_in_progress_list:
+            battle_in_progress_mention_qq_set.add(battle_in_progress.member_uid)
+            battle_in_progress.delete_instance()
         # 处理可以出刀提醒
-        if self.clan_info.clan_type != "cn":
-            if current_max_challenge_cycle > previous_max_challenge_cycle:
-                msg = Message("现在可以出刀了")
-                processed_uids = []
-                for boss_state in current_boss_status:
-                    if boss_state.target_cycle == current_max_challenge_cycle:
-                        if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
-                            for sub_record in sub_records:
-                                if not str(sub_record.member_uid) in processed_uids:
-                                    processed_uids.append(
-                                        str(sub_record.member_uid))
-                                    msg += MessageSegment.at(
-                                        str(sub_record.member_uid))
-                if len(msg) > 1:
-                    try:
-                        await bot.send_group_msg(group_id=gid, message=msg)
-                    except:
-                        pass
-        else:  # cn 出刀提醒
-            msg = Message("现在可以出刀了")
-            processed_uids = []
+        if self.clan_info.clan_type != "cn" and current_max_challenge_cycle > previous_max_challenge_cycle:
+            for boss_state in current_boss_status:
+                if boss_state.target_cycle != current_max_challenge_cycle:
+                    continue
+                if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
+                    for sub_record in sub_records:
+                        battle_subscribe_able_challenge_set.add(str(sub_record.member_uid))
+        elif self.clan_info.clan_type == "cn":  # cn 出刀提醒
             boss_state = self.get_current_boss_state_cn()
             if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
                 for sub_record in sub_records:
-                    if not str(sub_record.member_uid) in processed_uids:
-                        processed_uids.append(
-                            str(sub_record.member_uid))
-                        msg += MessageSegment.at(
-                            str(sub_record.member_uid))
-            if len(msg) > 1:
-                try:
-                    await bot.send_group_msg(group_id=gid, message=msg)
-                except:
-                    pass
+                    battle_subscribe_able_challenge_set.add(str(sub_record.member_uid))
+        on_tree_mention_set -= no_report_uid_set
+        battle_subscribe_able_challenge_set -= no_report_uid_set
+        battle_in_progress_mention_qq_set -= no_report_uid_set
+        battle_subscribe_able_challenge_set -= no_report_uid_set
+        msg = Message()
+        if battle_subscribe_mention_qq_set:
+            msg += MessageSegment.text(f"{boss}王已被击败\n") + Message(map(MessageSegment.at, battle_subscribe_mention_qq_set))
+        if battle_subscribe_able_challenge_set:
+            msg += MessageSegment.text("\n") if msg else ""
+            msg += MessageSegment.text("现在可以出刀了\n") + Message(map(MessageSegment.at, battle_subscribe_able_challenge_set))
+        if battle_in_progress_mention_qq_set:
+            msg += MessageSegment.text("\n") if msg else ""
+            msg += MessageSegment.text("boss已被击败，无需继续挑战\n") + Message(map(MessageSegment.at, battle_in_progress_mention_qq_set))
+        if on_tree_mention_set:
+            msg += MessageSegment.text("\n") if msg else ""
+            msg += MessageSegment.text("下树啦\n") + Message(map(MessageSegment.at, on_tree_mention_set))
+        try:
+            await bot.send_group_msg(group_id=gid, message=msg)
+        except:
+            pass
+        
 
     def get_max_challenge_boss_cycle(self, boss_data: List[BossStatus]) -> int:
         current_stage = self.get_cycle_stage(boss_data[0].target_cycle)
