@@ -5,7 +5,7 @@ Princess Connect Re:Dive clanbattle bot based on NoneBot2
 ### 注意：即使插件完全兼容 NoneBot2 ，由于插件功能相对独立性并且需要挂载根目录，不建议将其作为其他机器人的插件加载，插件也不会上传到 PyPI 和 NoneBot 商店，建议用单独的 NoneBot2 实例运行本插件
 # 平台支持
 OneBot V11: `nonebot-adapter-onebot`  
-~~Telegram~~  
+Telegram: 经由[Nonebridge](https://github.com/ColdThunder11/nonebridge)提供，兼容绝大部分功能  
 # 安装
 1. 在开始安装插件前，请确保你已安装并部署 [NoneBot2](https://github.com/nonebot/nonebot2)，并已成功使 NoneBot 响应目标平台的指令  
 2. 在Bot插件目录执行命令`git clone https://github.com/ColdThunder11/yuki_clanbattle.git` 或 手动[下载mater分支源码](https://github.com/OREOCODEDEV/yuki_clanbattle/archive/refs/heads/master.zip)并解压到Bot插件目录  
@@ -53,7 +53,7 @@ peewee: `pip install peewee`
 # 其它
 部署指南：在线等pr，任何有关询问如何部署的issue均不会回答   
 Todo list:
-- [ ] Telegram支持
+- [x] Telegram支持
 - [ ] 部署文档（等PR）
 - [ ] ~~Discord支持~~
 
