@@ -850,7 +850,13 @@ class ClanBattleData:
         boss_status = self.get_current_boss_state()
         boss = boss_status[target_boss-1]
         if not target_cycle:
-            cycle = boss.target_cycle
+            if self.clan_info.clan_type != "cn":
+                if self.get_max_challenge_boss_cycle(boss_status) < boss_status[target_boss-1].target_cycle:
+                    cycle = boss.target_cycle
+                else:
+                    cycle = boss.target_cycle + 1
+            else:
+                cycle = boss.target_cycle + 1 if self.get_current_boss_state_cn().target_boss == boss.target_boss else boss.target_cycle
         else:
             cycle = target_cycle
         if not self.check_joined_clan(uid):
