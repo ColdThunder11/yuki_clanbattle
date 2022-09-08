@@ -13,10 +13,12 @@ class ConfigClass(pydantic.BaseModel):
 
 clanbattle_config: "ConfigClass" = None
 
+
 def get_config() -> ConfigClass:
     if not clanbattle_config:
         load_config()
     return clanbattle_config
+
 
 def load_config():
     global clanbattle_config

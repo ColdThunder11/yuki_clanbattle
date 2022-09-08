@@ -167,16 +167,16 @@ class WebGetRoute:
     async def member_list(uid: str, clan_gid: str):
         clan = clanbattle.get_clan_data(clan_gid)
         member_list = clan.get_clan_members_with_info()
-        return{"err_code": 0, "member_list": member_list}
+        return {"err_code": 0, "member_list": member_list}
 
     @staticmethod
     async def report_unqueue(uid: str, clan_gid: str):
         clan = clanbattle.get_clan_data(clan_gid)
         result = clan.delete_battle_in_progress(uid)
         if result:
-            return{"err_code": 0}
+            return {"err_code": 0}
         else:
-            return{"err_code": 403, "msg": "取消申请失败，请确认您已经在出刀了喵"}
+            return {"err_code": 403, "msg": "取消申请失败，请确认您已经在出刀了喵"}
 
     @staticmethod
     async def get_in_queue(uid: str, clan_gid: str):
@@ -218,7 +218,7 @@ class WebGetRoute:
     async def current_clanbattle_data_num(uid: str, clan_gid: str):
         clan = clanbattle.get_clan_data(clan_gid)
         data_num = clan.get_current_clanbattle_data()
-        return{"err_code": 0, "data_num": data_num}
+        return {"err_code": 0, "data_num": data_num}
 
     @staticmethod
     async def clan_area(uid: str, clan_gid: str):
@@ -278,15 +278,15 @@ class WebPostRoute:
                 await bot.send_group_msg(group_id=item.clan_gid, message="网页上报数据：\n" + MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日第{today_status.today_challenged}刀，{record_type}\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
             else:
                 await bot.send_group_msg(group_id=item.clan_gid, message="网页上报数据：\n" + MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日第{today_status.today_challenged}刀，{record_type}")
-            return{"err_code": 0}
+            return {"err_code": 0}
         elif result == CommitRecordResult.illegal_damage_inpiut:
-            return{"err_code": 403, "msg": "上报的伤害格式不合法"}
+            return {"err_code": 403, "msg": "上报的伤害格式不合法"}
         elif result == CommitRecordResult.damage_out_of_hp:
-            return{"err_code": 403, "msg": "上报的伤害超出了boss血量，如已击杀请使用尾刀指令"}
+            return {"err_code": 403, "msg": "上报的伤害超出了boss血量，如已击杀请使用尾刀指令"}
         elif result == CommitRecordResult.check_record_legal_failed:
-            return{"err_code": 403, "msg": "上报数据合法性检查错误，请检查是否正确上报"}
+            return {"err_code": 403, "msg": "上报数据合法性检查错误，请检查是否正确上报"}
         elif result == CommitRecordResult.member_not_in_clan:
-            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+            return {"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
     @staticmethod
     async def report_queue(item: WebReportQueue, session: str = Cookie(None)):
@@ -298,13 +298,13 @@ class WebPostRoute:
         bot: Bot = list(nonebot.get_bots().values())[0]
         if result == CommitInProgressResult.success:
             await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"开始挑战{challenge_boss}王")
-            return{"err_code": 0}
+            return {"err_code": 0}
         elif result == CommitInProgressResult.already_in_battle:
-            return{"err_code": 403, "msg": "您已经有正在挑战的boss"}
+            return {"err_code": 403, "msg": "您已经有正在挑战的boss"}
         elif result == CommitInProgressResult.illegal_target_boss:
-            return{"err_code": 403, "msg": "您目前无法挑战这个boss"}
+            return {"err_code": 403, "msg": "您目前无法挑战这个boss"}
         elif result == CommitInProgressResult.member_not_in_clan:
-            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+            return {"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
     @staticmethod
     async def report_subscribe(item: WebReportSubscribe, session: str = Cookie(None)):
@@ -318,15 +318,15 @@ class WebPostRoute:
         bot: Bot = list(nonebot.get_bots().values())[0]
         if result == CommitSubscribeResult.success:
             await bot.send_group_msg(group_id=item.clan_gid, message=MessageSegment.at(uid) + f"预约了{cycle}周目{challenge_boss}王")
-            return{"err_code": 0}
+            return {"err_code": 0}
         elif result == CommitSubscribeResult.already_in_progress:
-            return{"err_code": 403, "msg": "您已经正在挑战这个boss了"}
+            return {"err_code": 403, "msg": "您已经正在挑战这个boss了"}
         elif result == CommitSubscribeResult.already_subscribed:
-            return{"err_code": 403, "msg": "您已经预约了这个boss了"}
+            return {"err_code": 403, "msg": "您已经预约了这个boss了"}
         elif result == CommitSubscribeResult.boss_cycle_already_killed:
-            return{"err_code": 403, "msg": "boss已经死亡，请刷新页面重新查看"}
+            return {"err_code": 403, "msg": "boss已经死亡，请刷新页面重新查看"}
         elif result == CommitSubscribeResult.member_not_in_clan:
-            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+            return {"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
     @staticmethod
     async def report_unsubscribe(item: WebReportSubscribe, session: str = Cookie(None)):
@@ -336,9 +336,9 @@ class WebPostRoute:
         cycle = int(item.target_cycle)
         result = clan.delete_battle_subscribe(uid, challenge_boss, cycle)
         if result:
-            return{"err_code": 0}
+            return {"err_code": 0}
         else:
-            return{"err_code": 403, "msg": "取消预约失败，请确认您已经预约该boss喵"}
+            return {"err_code": 403, "msg": "取消预约失败，请确认您已经预约该boss喵"}
 
     @staticmethod
     async def report_ontree(item: WebReportOnTree, session: str = Cookie(None)):
@@ -348,13 +348,13 @@ class WebPostRoute:
         comment = item.comment if item.comment else None
         result = clan.commit_battle_on_tree(uid, boss, comment)
         if result == CommitBattlrOnTreeResult.success:
-            return{"err_code": 0}
+            return {"err_code": 0}
         elif result == CommitBattlrOnTreeResult.already_in_other_boss_progress:
-            return{"err_code": 403, "msg": "您正在挑战其他Boss，无法在这里挂树哦"}
+            return {"err_code": 403, "msg": "您正在挑战其他Boss，无法在这里挂树哦"}
         elif result == CommitBattlrOnTreeResult.already_on_tree:
-            return{"err_code": 403, "msg": "您已经在树上了，不用再挂了"}
+            return {"err_code": 403, "msg": "您已经在树上了，不用再挂了"}
         elif result == CommitBattlrOnTreeResult.member_not_in_clan:
-            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+            return {"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
     @staticmethod
     async def report_sl(item: WebReportSL, session: str = Cookie(None)):
@@ -370,13 +370,13 @@ class WebPostRoute:
             result = clan.commit_battle_sl(
                 uid, boss, comment, proxy_report_uid)
         if result == CommitSLResult.success:
-            return{"err_code": 0}
+            return {"err_code": 0}
         elif result == CommitSLResult.illegal_target_boss:
-            return{"err_code": 403, "msg": "您还不能在这个boss上sl"}
+            return {"err_code": 403, "msg": "您还不能在这个boss上sl"}
         elif result == CommitSLResult.already_sl:
-            return{"err_code": 403, "msg": "您今天已经使用过SL了"}
+            return {"err_code": 403, "msg": "您今天已经使用过SL了"}
         elif result == CommitSLResult.member_not_in_clan:
-            return{"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
+            return {"err_code": 403, "msg": "您还未加入公会，请发送“加入公会”加入"}
 
     @staticmethod
     async def query_record(item: WebQueryReport, session: str = Cookie(None)):
@@ -958,7 +958,7 @@ async def join_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State()
         await clanbattle_qq.join_clan.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if clan.check_joined_clan(uid):
         await clanbattle_qq.join_clan.finish("您已经加入公会了，无需再加入")
-    member_info = await bot.get_group_member_info(group_id=event.group_id,user_id=event.user_id)
+    member_info = await bot.get_group_member_info(group_id=event.group_id, user_id=event.user_id)
     clan.add_clan_member(str(
         member_info["user_id"]), member_info["card"] if member_info["card"] != "" else member_info["nickname"])
     await clanbattle_qq.join_clan.finish("加入成功")
@@ -1480,6 +1480,7 @@ async def delete_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State
     clanbattle.delete_clan(gid)
     await clanbattle_qq.delete_clan.finish("清除公会数据成功")
 
+
 @clanbattle_qq.query_certain_num.handle()
 async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
     gid = str(event.group_id)
@@ -1489,7 +1490,8 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State =
         await clanbattle_qq.query_certain_num.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if not clan.check_joined_clan(str(event.user_id)):
         await clanbattle_qq.query_certain_num.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
-    query_num = int(state['_matched_groups'][0]) if state['_matched_groups'][0] else None
+    query_num = int(state['_matched_groups'][0]
+                    ) if state['_matched_groups'][0] else None
     query_remain = True if state['_matched_groups'][1] else False
     if query_num:
         msg = f"今日已出{query_num}刀的有：\n"
@@ -1510,6 +1512,7 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State =
             msg = f"现在没有剩余的补偿刀！"
         await clanbattle_qq.query_certain_num.finish(msg.strip('、'))
 
+
 @clanbattle_qq.notice_not_report.handle()
 async def notice_not_report(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
     gid = str(event.group_id)
@@ -1521,7 +1524,8 @@ async def notice_not_report(bot: Bot, event: GroupMessageEvent, state: T_State =
         await clanbattle_qq.notice_not_report.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
     if not clan.check_admin_permission(uid):
         await clanbattle_qq.notice_not_report.finish("您不是会战管理员，无权使用本指令")
-    notice_num = int(state['_matched_groups'][0]) if state['_matched_groups'][0] else 0
+    notice_num = int(state['_matched_groups'][0]
+                     ) if state['_matched_groups'][0] else 0
     status = clan.get_today_member_status()
     notice_list = []
     for member_state in status:
