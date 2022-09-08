@@ -693,14 +693,13 @@ class ClanBattleData:
                 battle_in_progress.member_uid)
             battle_in_progress.delete_instance()
         # 处理可以出刀提醒
-        if self.clan_info.clan_type != "cn" and current_max_challenge_cycle > previous_max_challenge_cycle:
+        if self.clan_info.clan_type != "cn":
             for boss_state in current_boss_status:
-                if boss_state.target_cycle != current_max_challenge_cycle:
-                    continue
-                if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
-                    for sub_record in sub_records:
-                        battle_subscribe_able_challenge_set.add(
-                            str(sub_record.member_uid))
+                if boss_state.target_boss == boss or (current_max_challenge_cycle >= previous_max_challenge_cycle and boss_state.target_cycle == current_max_challenge_cycle):
+                    if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss, boss_cycle=boss_state.target_cycle):
+                        for sub_record in sub_records:
+                            battle_subscribe_able_challenge_set.add(
+                                str(sub_record.member_uid))
         elif self.clan_info.clan_type == "cn":  # cn 出刀提醒
             boss_state = self.get_current_boss_state_cn()
             if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
