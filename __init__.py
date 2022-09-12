@@ -548,10 +548,10 @@ class clanbattle_qq:
     )
     create_clan = worker.on_regex(r"^创建([台日国])服[公工]会")
     commit_record = worker.on_regex(
-        r"^报刀 ?(整)? ?([1-5]{1})??( )?(\d+[EeKkWwBb]{0,2})?([:：](.*?))? ?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$"
+        r"^([1-5]{1})?报刀 ?(整)? ?([1-5]{1})??( )?(\d+[EeKkWwBb]{0,2})?([:：](.*?))? ?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$"
     )
     commit_kill_record = worker.on_regex(
-        r"^尾刀 ?(整)? ?([1-5]{1})?? ?([:：](.*?))? ?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
+        r"^([1-5]{1})?尾刀 ?(整)? ?([1-5]{1})?? ?([:：](.*?))? ?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
     progress = worker.on_regex(r"^(状态|查) ?([1-5]{0,5})?$")
     query_recent_record = worker.on_regex(
         r"^查刀 ?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
@@ -712,16 +712,19 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
 @clanbattle_qq.commit_record.handle()
 async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
     proxy_report_uid: str = None
-    if not state['_matched_groups'][7]:
+    if not state['_matched_groups'][8]:
         uid = str(event.user_id)
     else:
-        uid = state['_matched_groups'][7]
+        uid = state['_matched_groups'][8]
         proxy_report_uid = str(event.user_id)
-    force_use_full_chance = True if state['_matched_groups'][0] else False
-    challenge_boss = int(state['_matched_groups'][1]
-                         ) if state['_matched_groups'][1] else None
-    challenge_damage = state['_matched_groups'][3]
-    comment = state['_matched_groups'][5]
+    force_use_full_chance = True if state['_matched_groups'][1] else False
+    if state['_matched_groups'][0]:
+        challenge_boss = int(state['_matched_groups'][0])
+    else:
+        challenge_boss = int(state['_matched_groups'][2]
+                             ) if state['_matched_groups'][2] else None
+    challenge_damage = state['_matched_groups'][4]
+    comment = state['_matched_groups'][6]
     clan = clanbattle.get_clan_data(str(event.group_id))
     if clan.clan_info.clan_type == "cn":
         challenge_boss = clan.get_current_boss_state_cn().target_boss
@@ -771,15 +774,18 @@ async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State = 
 @clanbattle_qq.commit_kill_record.handle()
 async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
     proxy_report_uid: str = None
-    if not state['_matched_groups'][5]:
+    if not state['_matched_groups'][6]:
         uid = str(event.user_id)
     else:
-        uid = state['_matched_groups'][5]
+        uid = state['_matched_groups'][6]
         proxy_report_uid = str(event.user_id)
-    force_use_full_chance = True if state['_matched_groups'][0] else False
-    challenge_boss = int(state['_matched_groups'][1]
-                         ) if state['_matched_groups'][1] else None
-    comment = state['_matched_groups'][3]
+    force_use_full_chance = True if state['_matched_groups'][1] else False
+    if state['_matched_groups'][0]:
+        challenge_boss = int(state['_matched_groups'][0])
+    else:
+        challenge_boss = int(state['_matched_groups'][2]
+                             ) if state['_matched_groups'][2] else None
+    comment = state['_matched_groups'][4]
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
         await clanbattle_qq.commit_kill_record.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
