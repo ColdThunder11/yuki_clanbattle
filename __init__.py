@@ -1196,7 +1196,7 @@ async def show_queue(bot: Bot, event: GroupMessageEvent, state: T_State = State(
         for i in range(1, 6):
             prog = clan.get_battle_in_progress(boss=i)
             if prog:
-                msg += f"{i}王：\n"
+                msg += f"==={i}王===\n"
                 for pro in prog:
                     msg += f"{clan.get_user_info(pro.member_uid).uname}"
                     if pro.comment and pro.comment != "":
@@ -1222,7 +1222,7 @@ async def show_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State = St
             subs = clan.get_battle_subscribe(
                 boss=i, boss_cycle=boss_status[i-1].target_cycle)
             if subs:
-                msg += f"{i}王：\n"
+                msg += f"==={i}王===\n"
                 for sub in subs:
                     msg += f"{clan.get_user_info(sub.member_uid).uname}"
                     if sub.comment and sub.comment != "":
