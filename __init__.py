@@ -36,7 +36,7 @@ clanbattle = ClanBattle()
 
 call_api_orig_func = None
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 
 async def call_api_func_hook(self, api: str, **data: Any) -> Any:
