@@ -593,9 +593,9 @@ class clanbattle_qq:
     clear_current_clanbattle_data = worker.on_regex(r"^清空当前会战档案$")
     force_change_boss_status = worker.on_regex(
         r"^修改进度 ?([1-5]{1}) ([0-9]{1,3}) (\d+[EeKkWwBb]{0,2})$")
-    delete_clan = worker.on_regex(r"清除公会数据")
-    query_certain_num = worker.on_regex(r"查([0-3]{1})|(补偿)刀")
-    notice_not_report = worker.on_regex(r"催刀([0-2]{1})?")
+    delete_clan = worker.on_regex(r"^清除公会数据$")
+    query_certain_num = worker.on_regex(r"^查([0-3]{1})|(补偿)刀$")
+    notice_not_report = worker.on_regex(r"^催刀([0-2]{1})?$")
     #killcalc = worker.on_regex(r"^合刀( )?(\d+) (\d+) (\d+)( \d+)?$")
 
 
