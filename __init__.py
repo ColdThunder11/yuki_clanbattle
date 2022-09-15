@@ -546,7 +546,7 @@ class clanbattle_qq:
     worker = MatcherGroup(
         type="message", block=True
     )
-    create_clan = worker.on_regex(r"^创建([台日国])服[公工]会")
+    create_clan = worker.on_regex(r"^创建([台日国])服[公工]会$")
     commit_record = worker.on_regex(
         r"^([1-5]{1})?报刀 ?(整)? ?([1-5]{1})??( )?(\d+[EeKkWwBb]{0,2})?([:：](.*?))? ?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$"
     )
@@ -582,9 +582,9 @@ class clanbattle_qq:
     leave_clan = worker.on_regex(r"^退出[公工]会$")
     refresh_clan_admin = worker.on_regex(r"^刷新会战管理员列表$")
     rename_clan_uname = worker.on_regex(
-        r"^修改昵称 ?(.{1,20})(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?")
-    rename_clan = worker.on_regex(r"^修改[公工]会名称 ?(.{1,20})")
-    remove_clan_member = worker.on_regex(r"^移出[公工]会 ?(.{1,20})")
+        r"^修改昵称 ?(.{1,20})(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)?$")
+    rename_clan = worker.on_regex(r"^修改[公工]会名称 ?(.{1,20})$")
+    remove_clan_member = worker.on_regex(r"^移出[公工]会 ?(.{1,20})$")
     reset_password = worker.on_regex(r"^设置密码 ?(.{1,20})$")
     add_clanbattle_admin = on_regex(
         r"^添加会战管理员 ?(\[CQ:at,qq=([1-9][0-9]{4,})\] ?)$")
