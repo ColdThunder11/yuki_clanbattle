@@ -1431,11 +1431,13 @@ async def switch_current_clanbattle_data(bot: Bot, event: GroupMessageEvent, sta
     set_num = int(state['_matched_groups'][0])
     clan = clanbattle.get_clan_data(gid)
     if not clan:
-        await clanbattle_qq.remove_clan_member.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
+        await clanbattle_qq.switch_current_clanbattle_data.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if not clan.check_joined_clan(str(event.user_id)):
-        await clanbattle_qq.remove_clan_member.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
+        await clanbattle_qq.switch_current_clanbattle_data.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
     if not clan.check_admin_permission(uid):
-        await clanbattle_qq.remove_clan_member.finish("您不是会战管理员，无权使用本指令")
+        await clanbattle_qq.switch_current_clanbattle_data.finish("您不是会战管理员，无权使用本指令")
+    if set_num < 1 or set_num > 10:
+        await clanbattle_qq.switch_current_clanbattle_data.finish("会战档案超出允许的范围，请考虑清空旧的会战档案")
     clan.set_current_clanbattle_data(set_num)
     await clanbattle_qq.switch_current_clanbattle_data.finish(f"切换会战档案成功，当前使用会战档案{set_num}")
 
