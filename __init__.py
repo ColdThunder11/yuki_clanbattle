@@ -1402,7 +1402,7 @@ async def send_bot_help(bot: Bot, event: MessageEvent, state: T_State = State())
 @clanbattle_qq.webview.handle()
 async def send_webview(bot: Bot, event: MessageEvent, state: T_State = State()):
     if isinstance(event, GroupMessageEvent) or isinstance(event, PrivateMessageEvent):
-        await clanbattle_qq.webview.finish(f"请登录{get_config().web_url}clan查看详情，首次登录前请私聊bot“设置密码+要设置的密码”来设置密码（由于风控暂时无回复）")
+        await clanbattle_qq.webview.finish(f"请登录{get_config().web_url}clan查看详情，首次登录前请先加入公会并私聊bot“设置密码+要设置的密码”来设置密码（由于风控暂时无回复）")
 
 
 @clanbattle_qq.join_all_member.handle()
