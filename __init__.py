@@ -594,7 +594,7 @@ class clanbattle_qq:
     force_change_boss_status = worker.on_regex(
         r"^修改进度 ?([1-5]{1}) ([0-9]{1,3}) (\d+[EeKkWwBb]{0,2})$")
     delete_clan = worker.on_regex(r"^清除公会数据$")
-    query_certain_num = worker.on_regex(r"^查([0-3]{1})|(补偿)刀$")
+    query_certain_num = worker.on_regex(r"^查(([0-3]{1})|(补偿))刀$")
     notice_not_report = worker.on_regex(r"^催刀([0-2]{1})?$")
     #killcalc = worker.on_regex(r"^合刀( )?(\d+) (\d+) (\d+)( \d+)?$")
 
@@ -1498,10 +1498,10 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State =
         await clanbattle_qq.query_certain_num.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if not clan.check_joined_clan(str(event.user_id)):
         await clanbattle_qq.query_certain_num.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
-    query_num = int(state['_matched_groups'][0]
-                    ) if state['_matched_groups'][0] else None
-    query_remain = True if state['_matched_groups'][1] else False
-    if query_num:
+    query_num = int(state['_matched_groups'][1]
+                    ) if state['_matched_groups'][1] else None
+    query_remain = True if state['_matched_groups'][2] else False
+    if query_num != None:
         msg = f"今日已出{query_num}刀的有：\n"
         status = clan.get_today_member_status()
         for member_state in status:
