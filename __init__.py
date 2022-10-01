@@ -662,6 +662,15 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
                 msg += "\n"
             status = clan.get_today_record_status_total()
             msg += f"今日已出{status[0]}刀，剩余{status[1]}刀补偿刀"
+            in_processes = clan.get_battle_in_progress()
+            in_processes_num = 0
+            for _ in in_processes:
+                in_processes_num += 1
+            on_tree = clan.get_battle_on_tree()
+            on_tree_num = 0
+            for _ in on_tree:
+                on_tree_num += 1
+            msg += f"\n当前{'有' + in_processes_num + '人' if not in_processes_num else '没有人'}正在出刀，{'有' + on_tree_num + '人' if not on_tree_num else '没有人'}还在树上"
             await clanbattle_qq.progress.finish(msg.strip() if not get_config().enable_anti_msg_fail else msg.strip() + "喵")
         elif state['_matched_groups'][1]:
             boss_count = int(state['_matched_groups'][1])
@@ -699,13 +708,25 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
                     if tree.comment and tree.comment != "":
                         on_tree_msg += f"：{tree.comment}"
                     on_tree_list.append(on_tree_msg)
-                msg += f"当前{ '、'.join(on_tree_list)}还挂在树上"
+                msg += f"现在{ '、'.join(on_tree_list)}还挂在树上"
     else:
         msg = "当前状态：\n"
         boss_status = clan.get_current_boss_state_cn()
         msg += f"{boss_status.target_cycle}周目{boss_status.target_boss}王，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}"
         status = clan.get_today_record_status_total()
         msg += f"\n今日已出{status[0]}刀，剩余{status[1]}刀补偿刀"
+        in_processes = clan.get_battle_in_progress()
+        in_process_list = []
+        for process in in_processes:
+            in_process_list.append(clan.get_user_name(process.member_uid))
+        if in_process_list:
+            msg += f"\n当前{ '、'.join(in_process_list)}正在出刀"
+        on_tree = clan.get_battle_on_tree(boss=boss_count)
+        on_tree_list = []
+        for tree in on_tree:
+            on_tree_list.append(clan.get_user_name(tree.member_uid))
+        if on_tree_list:
+            msg += f"\n现在{ '、'.join(on_tree_list)}还挂在树上"
     await clanbattle_qq.progress.finish(msg.strip() if isinstance(msg, str) else msg)
 
 
