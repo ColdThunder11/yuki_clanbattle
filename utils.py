@@ -1,3 +1,4 @@
+import asyncio
 from peewee import *
 from typing import Dict, List
 import datetime
@@ -710,26 +711,44 @@ class ClanBattleData:
         battle_subscribe_able_challenge_set -= no_report_uid_set
         battle_in_progress_mention_qq_set -= no_report_uid_set
         battle_subscribe_able_challenge_set -= no_report_uid_set
-        msg = Message()
-        if battle_subscribe_mention_qq_set:
-            msg += MessageSegment.text(f"{boss}王已被击败\n") + Message(
+        #预约当前和正在挑战提醒
+        memtion_boss_killed_msg = Message()
+        if battle_subscribe_mention_qq_set or battle_in_progress_mention_qq_set:
+            memtion_boss_killed_msg += MessageSegment.text(f"{boss}王已被击败，无需继续挑战\n")
+            if battle_subscribe_mention_qq_set:
+               memtion_boss_killed_msg += Message(
                 map(MessageSegment.at, battle_subscribe_mention_qq_set))
-        if battle_subscribe_able_challenge_set:
-            msg += MessageSegment.text("\n") if msg else ""
-            msg += MessageSegment.text("现在可以出刀了\n") + Message(
-                map(MessageSegment.at, battle_subscribe_able_challenge_set))
-        if battle_in_progress_mention_qq_set:
-            msg += MessageSegment.text("\n") if msg else ""
-            msg += MessageSegment.text("boss已被击败，无需继续挑战\n") + Message(
-                map(MessageSegment.at, battle_in_progress_mention_qq_set))
+            if battle_in_progress_mention_qq_set:
+               memtion_boss_killed_msg += Message(
+                map(MessageSegment.at, battle_subscribe_mention_qq_set))
+        if len(memtion_boss_killed_msg) > 0:
+            try:
+                await bot.send_group_msg(group_id=gid, message=memtion_boss_killed_msg)
+                await asyncio.sleep(0.5)
+            except:
+                pass
+        #下树提醒
+        on_tree_mention_msg = Message()
         if on_tree_mention_set:
-            msg += MessageSegment.text("\n") if msg else ""
-            msg += MessageSegment.text("下树啦\n") + \
+            on_tree_mention_msg += MessageSegment.text("下树啦\n") + \
                 Message(map(MessageSegment.at, on_tree_mention_set))
-        try:
-            await bot.send_group_msg(group_id=gid, message=msg)
-        except:
-            pass
+        if len(on_tree_mention_msg) > 0:
+            try:
+                await bot.send_group_msg(group_id=gid, message=on_tree_mention_msg)
+                await asyncio.sleep(0.5)
+            except:
+                pass
+        #预约可挑战提醒
+        battle_subscribe_able_challenge_msg = Message()
+        if battle_subscribe_able_challenge_set:
+            battle_subscribe_able_challenge_msg += MessageSegment.text("现在可以出刀了\n") + Message(
+                map(MessageSegment.at, battle_subscribe_able_challenge_set))
+        if len(battle_subscribe_able_challenge_msg) > 0:
+            try:
+                await bot.send_group_msg(group_id=gid, message=battle_subscribe_able_challenge_msg)
+                await asyncio.sleep(0.5)
+            except:
+                pass
 
     def get_max_challenge_boss_cycle(self, boss_data: List[BossStatus]) -> int:
         current_stage = self.get_cycle_stage(boss_data[0].target_cycle)
