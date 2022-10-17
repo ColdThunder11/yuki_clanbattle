@@ -16,7 +16,6 @@ from nonebot.adapters.onebot.v11.event import PrivateMessageEvent, GroupMessageE
 from nonebot.adapters.onebot.v11.message import Message, MessageSegment
 from nonebot.plugin import on, on_command, on_message, MatcherGroup, on_regex
 from nonebot.typing import T_State
-from nonebot.params import State
 
 
 from fastapi import FastAPI, Request, Path, Response, Cookie, WebSocket, WebSocketDisconnect
@@ -721,7 +720,7 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
             in_process_list.append(clan.get_user_name(process.member_uid))
         if in_process_list:
             msg += f"\n当前{ '、'.join(in_process_list)}正在出刀"
-        on_tree = clan.get_battle_on_tree(boss=boss_count)
+        on_tree = clan.get_battle_on_tree()
         on_tree_list = []
         for tree in on_tree:
             on_tree_list.append(clan.get_user_name(tree.member_uid))
