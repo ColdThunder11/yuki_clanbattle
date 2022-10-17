@@ -600,7 +600,7 @@ class clanbattle_qq:
 
 
 @clanbattle_qq.create_clan.handle()
-async def create_clan_qq(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def create_clan_qq(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     clan_area = state['_matched_groups'][0]
     if clan_area == "日":
@@ -642,7 +642,7 @@ async def create_clan_qq(bot: Bot, event: GroupMessageEvent, state: T_State = St
 
 
 @clanbattle_qq.progress.handle()
-async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_State):
     print(get_config)
     gid = str(event.group_id)
     clan = clanbattle.get_clan_data(gid)
@@ -731,7 +731,7 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
 
 
 @clanbattle_qq.commit_record.handle()
-async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State):
     proxy_report_uid: str = None
     if not state['_matched_groups'][8]:
         uid = str(event.user_id)
@@ -793,7 +793,7 @@ async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State = 
 
 
 @clanbattle_qq.commit_kill_record.handle()
-async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State):
     proxy_report_uid: str = None
     if not state['_matched_groups'][6]:
         uid = str(event.user_id)
@@ -864,7 +864,7 @@ async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State 
 
 
 @clanbattle_qq.queue.handle()
-async def commit_in_progress(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def commit_in_progress(bot: Bot, event: GroupMessageEvent, state: T_State):
     print(state['_matched_groups'])
     uid = str(event.user_id)
     challenge_boss = int(state['_matched_groups'][3]
@@ -911,7 +911,7 @@ async def commit_in_progress(bot: Bot, event: GroupMessageEvent, state: T_State 
 
 
 @clanbattle_qq.on_tree.handle()
-async def commit_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def commit_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     challenge_boss = int(state['_matched_groups'][0]
                          ) if state['_matched_groups'][0] else None
@@ -952,7 +952,7 @@ async def commit_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State = St
 
 
 @clanbattle_qq.subscribe.handle()
-async def commit_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def commit_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     challenge_boss = int(state['_matched_groups'][0])
     comment = state['_matched_groups'][4]
@@ -977,7 +977,7 @@ async def commit_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State = 
 
 
 @clanbattle_qq.join_clan.handle()
-async def join_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def join_clan(bot: Bot, event: GroupMessageEvent, state: T_State):
     if not state['_matched_groups'][1]:
         uid = str(event.user_id)
     else:
@@ -994,7 +994,7 @@ async def join_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State()
 
 
 @clanbattle_qq.today_record.handle()
-async def _(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
@@ -1007,7 +1007,7 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
 
 
 @clanbattle_qq.undo_record_commit.handle()
-async def undo_record_commit(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def undo_record_commit(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
@@ -1076,7 +1076,7 @@ async def undo_record_commit(bot: Bot, event: GroupMessageEvent, state: T_State 
 
 
 @clanbattle_qq.un_on_tree.handle()
-async def _(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
@@ -1091,7 +1091,7 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
 
 
 @clanbattle_qq.unsubscribe.handle()
-async def unsubscribe_boss(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def unsubscribe_boss(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     challenge_boss = int(state['_matched_groups'][0])
     cycle = int(state['_matched_groups'][2]
@@ -1109,7 +1109,7 @@ async def unsubscribe_boss(bot: Bot, event: GroupMessageEvent, state: T_State = 
 
 
 @clanbattle_qq.query_recent_record.handle()
-async def query_recent_record(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def query_recent_record(bot: Bot, event: GroupMessageEvent, state: T_State):
     target_qq = state['_matched_groups'][1]
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
@@ -1148,7 +1148,7 @@ async def query_recent_record(bot: Bot, event: GroupMessageEvent, state: T_State
 
 
 @clanbattle_qq.sl.handle()
-async def commit_sl(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def commit_sl(bot: Bot, event: GroupMessageEvent, state: T_State):
     proxy_report_uid: str = None
     uid = str(event.user_id)
     is_query_sl = True if state['_matched_groups'][0] else False
@@ -1190,7 +1190,7 @@ async def commit_sl(bot: Bot, event: GroupMessageEvent, state: T_State = State()
 
 
 @clanbattle_qq.unqueue.handle()
-async def unqueue_boss(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def unqueue_boss(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
@@ -1205,7 +1205,7 @@ async def unqueue_boss(bot: Bot, event: GroupMessageEvent, state: T_State = Stat
 
 
 @clanbattle_qq.showqueue.handle()
-async def show_queue(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def show_queue(bot: Bot, event: GroupMessageEvent, state: T_State):
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
         await clanbattle_qq.showqueue.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
@@ -1229,7 +1229,7 @@ async def show_queue(bot: Bot, event: GroupMessageEvent, state: T_State = State(
 
 
 @clanbattle_qq.showsubscribe.handle()
-async def show_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def show_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State):
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
         await clanbattle_qq.showsubscribe.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
@@ -1258,7 +1258,7 @@ async def show_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State = St
 
 
 @clanbattle_qq.sl_query.handle()
-async def query_sl(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def query_sl(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     if not state['_matched_groups'][1]:
         uid = str(event.user_id)
@@ -1277,7 +1277,7 @@ async def query_sl(bot: Bot, event: GroupMessageEvent, state: T_State = State())
 
 
 @clanbattle_qq.query_on_tree.handle()
-async def query_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def query_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State):
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
         await clanbattle_qq.query_on_tree.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
@@ -1303,7 +1303,7 @@ async def query_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State = Sta
 
 
 @clanbattle_qq.reset_password.handle()
-async def reset_password(bot: Bot, event: PrivateMessageEvent, state: T_State = State()):
+async def reset_password(bot: Bot, event: PrivateMessageEvent, state: T_State):
     uid = str(event.user_id)
     if user := ClanBattleData.get_user_info(uid):
         WebAuth.set_password(uid, state['_matched_groups'][0])
@@ -1314,7 +1314,7 @@ async def reset_password(bot: Bot, event: PrivateMessageEvent, state: T_State = 
 
 
 @clanbattle_qq.leave_clan.handle()
-async def leave_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def leave_clan(bot: Bot, event: GroupMessageEvent, state: T_State):
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(str(event.group_id))
     if not clan:
@@ -1326,7 +1326,7 @@ async def leave_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State(
 
 
 @clanbattle_qq.refresh_clan_admin.handle()
-async def refresh_clan_admin(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def refresh_clan_admin(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     clan = clanbattle.get_clan_data(gid)
     if not clan:
@@ -1343,7 +1343,7 @@ async def refresh_clan_admin(bot: Bot, event: GroupMessageEvent, state: T_State 
 
 
 @clanbattle_qq.rename_clan.handle()
-async def rename_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def rename_clan(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(gid)
@@ -1359,7 +1359,7 @@ async def rename_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State
 
 
 @clanbattle_qq.remove_clan_member.handle()
-async def remove_clan_member(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def remove_clan_member(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(gid)
@@ -1377,7 +1377,7 @@ async def remove_clan_member(bot: Bot, event: GroupMessageEvent, state: T_State 
 
 
 @clanbattle_qq.rename_clan_uname.handle()
-async def rename_clan_uname(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def rename_clan_uname(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     clan = clanbattle.get_clan_data(gid)
     if not clan:
@@ -1398,7 +1398,7 @@ async def rename_clan_uname(bot: Bot, event: GroupMessageEvent, state: T_State =
 
 
 @clanbattle_qq.force_change_boss_status.handle()
-async def force_change_boss_status(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def force_change_boss_status(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(gid)
@@ -1417,19 +1417,19 @@ async def force_change_boss_status(bot: Bot, event: GroupMessageEvent, state: T_
 
 
 @clanbattle_qq.help.handle()
-async def send_bot_help(bot: Bot, event: MessageEvent, state: T_State = State()):
+async def send_bot_help(bot: Bot, event: MessageEvent, state: T_State):
     if isinstance(event, GroupMessageEvent) or isinstance(event, PrivateMessageEvent):
         await clanbattle_qq.help.finish(f"Yuki Clanbattle Ver{VERSION}\n会战帮助请见{get_config().web_url}help")
 
 
 @clanbattle_qq.webview.handle()
-async def send_webview(bot: Bot, event: MessageEvent, state: T_State = State()):
+async def send_webview(bot: Bot, event: MessageEvent, state: T_State):
     if isinstance(event, GroupMessageEvent) or isinstance(event, PrivateMessageEvent):
         await clanbattle_qq.webview.finish(f"请登录{get_config().web_url}clan 查看详情，首次登录前请先加入公会并私聊bot“设置密码+要设置的密码”来设置密码（由于风控暂时无回复）")
 
 
 @clanbattle_qq.join_all_member.handle()
-async def join_all_member(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def join_all_member(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     clan = clanbattle.get_clan_data(gid)
     if not clan:
@@ -1448,7 +1448,7 @@ async def join_all_member(bot: Bot, event: GroupMessageEvent, state: T_State = S
 
 
 @clanbattle_qq.switch_current_clanbattle_data.handle()
-async def switch_current_clanbattle_data(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def switch_current_clanbattle_data(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     set_num = int(state['_matched_groups'][0])
@@ -1466,7 +1466,7 @@ async def switch_current_clanbattle_data(bot: Bot, event: GroupMessageEvent, sta
 
 
 @clanbattle_qq.clear_current_clanbattle_data.handle()
-async def clear_current_clanbattle_data(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def clear_current_clanbattle_data(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(gid)
@@ -1481,7 +1481,7 @@ async def clear_current_clanbattle_data(bot: Bot, event: GroupMessageEvent, stat
 
 
 @clanbattle_qq.add_clanbattle_admin.handle()
-async def add_clanbattle_admin(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def add_clanbattle_admin(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     new_admin_uid = state['_matched_groups'][1]
@@ -1498,7 +1498,7 @@ async def add_clanbattle_admin(bot: Bot, event: GroupMessageEvent, state: T_Stat
 
 
 @clanbattle_qq.delete_clan.handle()
-async def delete_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def delete_clan(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(gid)
@@ -1513,7 +1513,7 @@ async def delete_clan(bot: Bot, event: GroupMessageEvent, state: T_State = State
 
 
 @clanbattle_qq.query_certain_num.handle()
-async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(gid)
@@ -1545,7 +1545,7 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State =
 
 
 @clanbattle_qq.notice_not_report.handle()
-async def notice_not_report(bot: Bot, event: GroupMessageEvent, state: T_State = State()):
+async def notice_not_report(bot: Bot, event: GroupMessageEvent, state: T_State):
     gid = str(event.group_id)
     uid = str(event.user_id)
     clan = clanbattle.get_clan_data(gid)
