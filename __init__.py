@@ -986,7 +986,7 @@ async def join_clan(bot: Bot, event: GroupMessageEvent, state: T_State):
         await clanbattle_qq.join_clan.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if clan.check_joined_clan(uid):
         await clanbattle_qq.join_clan.finish("您已经加入公会了，无需再加入")
-    member_info = await bot.get_group_member_info(group_id=event.group_id, user_id=event.user_id)
+    member_info = await bot.get_group_member_info(group_id=event.group_id, user_id=int(uid))
     clan.add_clan_member(str(
         member_info["user_id"]), member_info["card"] if member_info["card"] != "" else member_info["nickname"])
     await clanbattle_qq.join_clan.finish("加入成功")
