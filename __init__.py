@@ -669,7 +669,7 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
             on_tree_num = 0
             for _ in on_tree:
                 on_tree_num += 1
-            msg += f"\n当前{'有' + in_processes_num + '人' if not in_processes_num else '没有人'}正在出刀，{'有' + on_tree_num + '人' if not on_tree_num else '没有人'}还在树上"
+            msg += f"\n当前{'有' + str(in_processes_num) + '人' if not in_processes_num else '没有人'}正在出刀，{'有' + str(on_tree_num) + '人' if not on_tree_num else '没有人'}还在树上"
             await clanbattle_qq.progress.finish(msg.strip() if not get_config().enable_anti_msg_fail else msg.strip() + "喵")
         elif state['_matched_groups'][1]:
             boss_count = int(state['_matched_groups'][1])
