@@ -930,11 +930,25 @@ class ClanBattleData:
 
     def commit_force_change_boss_status(self, target_boss: int, target_cycle: int, target_hp: str) -> bool:
         try:
-            boss_hp = self.parse_damage(target_hp)
+            if self.clan_info.clan_type != "cn":
+                boss_hp = self.parse_damage(target_hp)
+                self.create_new_record("admin", target_cycle, target_boss,
+                            0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
+            else:
+                boss_hp = self.parse_damage(target_hp)
+                for i in range(1,6):
+                    if i == target_boss:
+                        continue
+                    else:
+                        boss_cycle = target_cycle if i < target_boss else target_cycle - 1
+                        if boss_cycle > 0:
+                            boss_stage = self.get_cycle_stage(boss_cycle)
+                            self.create_new_record("admin", boss_cycle, i,
+                                        boss_info["boss"][self.clan_info.clan_type][boss_stage-1][i-1], boss_info["boss"][self.clan_info.clan_type][boss_stage-1][i-1], "本条记录为会战管理员强制修改进度所创建", False, False, None)
+                self.create_new_record("admin", target_cycle, target_boss,
+                            0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
         except ClanBattleDamageParseException:
             return False
-        self.create_new_record("admin", target_cycle, target_boss,
-                               0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
         return True
 
 
