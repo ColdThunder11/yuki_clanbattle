@@ -1533,12 +1533,12 @@ async def query_certain_num(bot: Bot, event: GroupMessageEvent, state: T_State):
             msg = f"今天还没有人已经出了{query_num}刀"
         await clanbattle_qq.query_certain_num.finish(msg.strip('、'))
     if query_remain:
-        msg = f"今日未出补偿刀的有：\n"
+        msg = f"还没有出补偿刀的有：\n"
         status = clan.get_today_member_status()
         for member_state in status:
-            if member_state.remain_addition_challeng == query_num:
+            if member_state.remain_addition_challeng > 0:
                 msg += f"{clan.get_user_name(member_state.uid)}、"
-        if msg == f"今日未出补偿刀的有：\n":
+        if msg == f"还没有出补偿刀的有：\n":
             msg = f"现在没有剩余的补偿刀！"
         await clanbattle_qq.query_certain_num.finish(msg.strip('、'))
 
