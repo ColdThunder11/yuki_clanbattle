@@ -1250,7 +1250,7 @@ async def show_subscribe(bot: Bot, event: GroupMessageEvent, state: T_State):
                     if sub.comment and sub.comment != "":
                         msg += f" : {sub.comment}"
                     msg += "\n"
-        if msg == "当前预约的成员：":
+        if msg == "当前预约的成员：\n":
             msg = "没有人预约当前周目的boss哦"
         msg += "\n更多其他周目的预约请前往网页面板查看"
         await clanbattle_qq.showsubscribe.finish(msg.strip())
