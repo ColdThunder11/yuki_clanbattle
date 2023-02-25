@@ -1038,7 +1038,8 @@ async def undo_record_commit(bot: Bot, event: GroupMessageEvent, state: T_State)
                 challenge_uid = recent_record[0].member_uid
                 proxy_uid = recent_record[0].proxy_report_uid
                 if uid in (challenge_uid, proxy_uid) or clan.check_admin_permission(str(event.user_id)):
-                    ret = clan.delete_recent_record(challenge_uid)
+                    ret = clan.delete_recent_record(
+                        challenge_uid, boss_count=boss_count)
                     if ret:
                         msg = "出刀撤回成功"
                         if boss_count:

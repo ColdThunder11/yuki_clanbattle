@@ -486,8 +486,8 @@ class ClanBattleData:
                             is_extra_time=is_extra_time, remain_next_chance=remain_next_chance, proxy_report_uid=proxy_report_uid)
 
     @clear_cache
-    def delete_recent_record(self, uid: str) -> bool:
-        record = self.get_recent_record(uid=uid)
+    def delete_recent_record(self, uid: str, boss_count=None) -> bool:
+        record = self.get_recent_record(uid=uid, boss=boss_count)
         if not record:
             return False
         else:
@@ -711,23 +711,24 @@ class ClanBattleData:
         battle_subscribe_able_challenge_set -= no_report_uid_set
         battle_in_progress_mention_qq_set -= no_report_uid_set
         battle_subscribe_able_challenge_set -= no_report_uid_set
-        #预约当前和正在挑战提醒
+        # 预约当前和正在挑战提醒
         memtion_boss_killed_msg = Message()
         if battle_subscribe_mention_qq_set or battle_in_progress_mention_qq_set:
-            memtion_boss_killed_msg += MessageSegment.text(f"{boss}王已被击败，无需继续挑战\n")
+            memtion_boss_killed_msg += MessageSegment.text(
+                f"{boss}王已被击败，无需继续挑战\n")
             if battle_subscribe_mention_qq_set:
-               memtion_boss_killed_msg += Message(
-                map(MessageSegment.at, battle_subscribe_mention_qq_set))
+                memtion_boss_killed_msg += Message(
+                    map(MessageSegment.at, battle_subscribe_mention_qq_set))
             if battle_in_progress_mention_qq_set:
-               memtion_boss_killed_msg += Message(
-                map(MessageSegment.at, battle_subscribe_mention_qq_set))
+                memtion_boss_killed_msg += Message(
+                    map(MessageSegment.at, battle_subscribe_mention_qq_set))
         if len(memtion_boss_killed_msg) > 0:
             try:
                 await bot.send_group_msg(group_id=gid, message=memtion_boss_killed_msg)
                 await asyncio.sleep(0.5)
             except:
                 pass
-        #下树提醒
+        # 下树提醒
         on_tree_mention_msg = Message()
         if on_tree_mention_set:
             on_tree_mention_msg += MessageSegment.text("下树啦\n") + \
@@ -738,7 +739,7 @@ class ClanBattleData:
                 await asyncio.sleep(0.5)
             except:
                 pass
-        #预约可挑战提醒
+        # 预约可挑战提醒
         battle_subscribe_able_challenge_msg = Message()
         if battle_subscribe_able_challenge_set:
             battle_subscribe_able_challenge_msg += MessageSegment.text("现在可以出刀了\n") + Message(
@@ -875,7 +876,9 @@ class ClanBattleData:
                 else:
                     cycle = boss.target_cycle + 1
             else:
-                cycle = boss.target_cycle + 1 if self.get_current_boss_state_cn().target_boss == boss.target_boss else boss.target_cycle
+                cycle = boss.target_cycle + \
+                    1 if self.get_current_boss_state_cn(
+                    ).target_boss == boss.target_boss else boss.target_cycle
         else:
             cycle = target_cycle
         if not self.check_joined_clan(uid):
@@ -933,10 +936,10 @@ class ClanBattleData:
             if self.clan_info.clan_type != "cn":
                 boss_hp = self.parse_damage(target_hp)
                 self.create_new_record("admin", target_cycle, target_boss,
-                            0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
+                                       0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
             else:
                 boss_hp = self.parse_damage(target_hp)
-                for i in range(1,6):
+                for i in range(1, 6):
                     if i == target_boss:
                         continue
                     else:
@@ -944,9 +947,9 @@ class ClanBattleData:
                         if boss_cycle > 0:
                             boss_stage = self.get_cycle_stage(boss_cycle)
                             self.create_new_record("admin", boss_cycle, i,
-                                        boss_info["boss"][self.clan_info.clan_type][boss_stage-1][i-1], boss_info["boss"][self.clan_info.clan_type][boss_stage-1][i-1], "本条记录为会战管理员强制修改进度所创建", False, False, None)
+                                                   boss_info["boss"][self.clan_info.clan_type][boss_stage-1][i-1], boss_info["boss"][self.clan_info.clan_type][boss_stage-1][i-1], "本条记录为会战管理员强制修改进度所创建", False, False, None)
                 self.create_new_record("admin", target_cycle, target_boss,
-                            0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
+                                       0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
         except ClanBattleDamageParseException:
             return False
         return True
