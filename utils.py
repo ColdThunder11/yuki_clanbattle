@@ -751,8 +751,6 @@ class ClanBattleData:
                 pass
 
     def get_max_challenge_boss_cycle(self, boss_data: List[BossStatus]) -> int:
-        current_stage = self.get_cycle_stage(boss_data[0].target_cycle)
-        next_stage = current_stage + 1
         current_max_cycle = boss_data[0].target_cycle
         current_min_cycle = boss_data[0].target_cycle
         for boss in boss_data:
@@ -760,6 +758,8 @@ class ClanBattleData:
                 current_max_cycle = boss.target_cycle
             if current_min_cycle > boss.target_cycle:
                 current_min_cycle = boss.target_cycle
+        current_stage = self.get_cycle_stage(current_min_cycle)
+        next_stage = current_stage + 1
         if current_max_cycle - current_min_cycle == 2:
             return current_max_cycle - 1
         elif current_max_cycle - current_min_cycle == 1:
