@@ -155,13 +155,8 @@ class WebGetRoute:
     @staticmethod
     async def boss_status(uid: str, clan_gid: str):
         clan = clanbattle.get_clan_data(clan_gid)
-        if clan.clan_info.clan_type != "cn":
-            boss_status = clan.get_current_boss_state()
-            return {"err_code": 0, "boss_status": boss_status}
-        else:
-            boss_status = clan.get_current_boss_state_cn()
-            return {"err_code": 0, "boss_status": boss_status}
-
+        boss_status = clan.get_current_boss_state()
+        return {"err_code": 0, "boss_status": boss_status}
     @staticmethod
     async def member_list(uid: str, clan_gid: str):
         clan = clanbattle.get_clan_data(clan_gid)
@@ -273,10 +268,7 @@ class WebPostRoute:
                 record_type = "补偿刀"
             else:
                 record_type = "完整刀"
-            if clan.clan_info.clan_type != "cn":
-                await bot.send_group_msg(group_id=item.clan_gid, message="网页上报数据：\n" + MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日第{today_status.today_challenged}刀，{record_type}\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
-            else:
-                await bot.send_group_msg(group_id=item.clan_gid, message="网页上报数据：\n" + MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日第{today_status.today_challenged}刀，{record_type}")
+            await bot.send_group_msg(group_id=item.clan_gid, message="网页上报数据：\n" + MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害\n今日第{today_status.today_challenged}刀，{record_type}\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
             return {"err_code": 0}
         elif result == CommitRecordResult.illegal_damage_inpiut:
             return {"err_code": 403, "msg": "上报的伤害格式不合法"}
@@ -649,84 +641,64 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
         await clanbattle_qq.progress.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if not clan.check_joined_clan(str(event.user_id)):
         await clanbattle_qq.progress.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
-    if clan.clan_info.clan_type != "cn":
-        boss_status = clan.get_current_boss_state()
-        if state['_matched_groups'][0] == "状态" and not state['_matched_groups'][1]:
-            msg = "当前状态：\n" if not get_config().enable_anti_msg_fail else "Status:\n"
-            for boss in boss_status:
-                msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}" if not get_config(
-                ).enable_anti_msg_fail else f"{boss.target_cycle}周目{boss.target_boss}王 HP{Tools.get_num_str_with_dot(boss.boss_hp)}"
-                if not clan.check_boss_challengeable(boss.target_cycle, boss.target_boss):
-                    msg += "（不可挑战）"
-                msg += "\n"
-            status = clan.get_today_record_status_total()
-            msg += f"今日已出{status[0]}刀，剩余{status[1]}刀补偿刀"
-            in_processes = clan.get_battle_in_progress()
-            in_processes_num = 0
-            for _ in in_processes:
-                in_processes_num += 1
-            on_tree = clan.get_battle_on_tree()
-            on_tree_num = 0
-            for _ in on_tree:
-                on_tree_num += 1
-            msg += f"\n当前{'有' + str(in_processes_num) + '人' if in_processes_num != 0 else '没有人'}正在出刀，{'有' + str(on_tree_num) + '人' if on_tree_num != 0 else '没有人'}还在树上"
-            await clanbattle_qq.progress.finish(msg.strip() if not get_config().enable_anti_msg_fail else msg.strip() + "喵")
-        elif state['_matched_groups'][1]:
-            boss_count = int(state['_matched_groups'][1])
-            boss = boss_status[boss_count-1]
-            msg = f"当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}"
-            if not clan.check_boss_challengeable(boss.target_cycle, boss_count):
+    boss_status = clan.get_current_boss_state()
+    if state['_matched_groups'][0] == "状态" and not state['_matched_groups'][1]:
+        msg = "当前状态：\n" if not get_config().enable_anti_msg_fail else "Status:\n"
+        for boss in boss_status:
+            msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}" if not get_config(
+            ).enable_anti_msg_fail else f"{boss.target_cycle}周目{boss.target_boss}王 HP{Tools.get_num_str_with_dot(boss.boss_hp)}"
+            if not clan.check_boss_challengeable(boss.target_cycle, boss.target_boss):
                 msg += "（不可挑战）"
             msg += "\n"
-            subs = clan.get_battle_subscribe(
-                boss=boss_count, boss_cycle=boss.target_cycle)
-            if subs:
-                for sub in subs:
-                    msg += clan.get_user_name(sub.member_uid)
-                    if sub.comment and sub.comment != "":
-                        msg += f"：{sub.comment}"
-                msg += "已经预约该boss"
-            in_processes = clan.get_battle_in_progress(boss=boss_count)
-            if in_processes:
-                if subs:
-                    msg += "\n"
-                in_process_list = []
-                for proc in in_processes:
-                    proc_msg = clan.get_user_name(proc.member_uid)
-                    if proc.comment and proc.comment != "":
-                        proc_msg += f"：{proc.comment}"
-                    in_process_list.append(proc_msg)
-                msg += "、".join(in_process_list) + "正在出刀"
-            on_tree = clan.get_battle_on_tree(boss=boss_count)
-            if on_tree:
-                if in_processes or subs:
-                    msg += "\n"
-                on_tree_list = []
-                for tree in on_tree:
-                    on_tree_msg = clan.get_user_name(tree.member_uid)
-                    if tree.comment and tree.comment != "":
-                        on_tree_msg += f"：{tree.comment}"
-                    on_tree_list.append(on_tree_msg)
-                msg += f"现在{ '、'.join(on_tree_list)}还挂在树上"
-    else:
-        msg = "当前状态：\n"
-        boss_status = clan.get_current_boss_state_cn()
-        msg += f"{boss_status.target_cycle}周目{boss_status.target_boss}王，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}"
         status = clan.get_today_record_status_total()
-        msg += f"\n今日已出{status[0]}刀，剩余{status[1]}刀补偿刀"
+        msg += f"今日已出{status[0]}刀，剩余{status[1]}刀补偿刀"
         in_processes = clan.get_battle_in_progress()
-        in_process_list = []
-        for process in in_processes:
-            in_process_list.append(clan.get_user_name(process.member_uid))
-        if in_process_list:
-            msg += f"\n当前{ '、'.join(in_process_list)}正在出刀"
+        in_processes_num = 0
+        for _ in in_processes:
+            in_processes_num += 1
         on_tree = clan.get_battle_on_tree()
-        on_tree_list = []
-        for tree in on_tree:
-            on_tree_list.append(clan.get_user_name(tree.member_uid))
-        if on_tree_list:
-            msg += f"\n现在{ '、'.join(on_tree_list)}还挂在树上"
-    await clanbattle_qq.progress.finish(msg.strip() if isinstance(msg, str) else msg)
+        on_tree_num = 0
+        for _ in on_tree:
+            on_tree_num += 1
+        msg += f"\n当前{'有' + str(in_processes_num) + '人' if in_processes_num != 0 else '没有人'}正在出刀，{'有' + str(on_tree_num) + '人' if on_tree_num != 0 else '没有人'}还在树上"
+        await clanbattle_qq.progress.finish(msg.strip() if not get_config().enable_anti_msg_fail else msg.strip() + "喵")
+    elif state['_matched_groups'][1]:
+        boss_count = int(state['_matched_groups'][1])
+        boss = boss_status[boss_count-1]
+        msg = f"当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}"
+        if not clan.check_boss_challengeable(boss.target_cycle, boss_count):
+            msg += "（不可挑战）"
+        msg += "\n"
+        subs = clan.get_battle_subscribe(
+            boss=boss_count, boss_cycle=boss.target_cycle)
+        if subs:
+            for sub in subs:
+                msg += clan.get_user_name(sub.member_uid)
+                if sub.comment and sub.comment != "":
+                    msg += f"：{sub.comment}"
+            msg += "已经预约该boss"
+        in_processes = clan.get_battle_in_progress(boss=boss_count)
+        if in_processes:
+            if subs:
+                msg += "\n"
+            in_process_list = []
+            for proc in in_processes:
+                proc_msg = clan.get_user_name(proc.member_uid)
+                if proc.comment and proc.comment != "":
+                    proc_msg += f"：{proc.comment}"
+                in_process_list.append(proc_msg)
+            msg += "、".join(in_process_list) + "正在出刀"
+        on_tree = clan.get_battle_on_tree(boss=boss_count)
+        if on_tree:
+            if in_processes or subs:
+                msg += "\n"
+            on_tree_list = []
+            for tree in on_tree:
+                on_tree_msg = clan.get_user_name(tree.member_uid)
+                if tree.comment and tree.comment != "":
+                    on_tree_msg += f"：{tree.comment}"
+                on_tree_list.append(on_tree_msg)
+            msg += f"现在{ '、'.join(on_tree_list)}还挂在树上"
 
 
 @clanbattle_qq.commit_record.handle()
@@ -746,8 +718,6 @@ async def commit_record_qq(bot: Bot, event: GroupMessageEvent, state: T_State):
     challenge_damage = state['_matched_groups'][4]
     comment = state['_matched_groups'][6]
     clan = clanbattle.get_clan_data(str(event.group_id))
-    if clan.clan_info.clan_type == "cn":
-        challenge_boss = clan.get_current_boss_state_cn().target_boss
     if not challenge_boss:
         if progress := clan.get_battle_in_progress(uid=uid):
             challenge_boss = progress[0].target_boss
@@ -811,8 +781,6 @@ async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State)
         await clanbattle_qq.commit_kill_record.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if not clan.check_joined_clan(str(event.user_id)):
         await clanbattle_qq.commit_kill_record.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
-    if clan.clan_info.clan_type == "cn":
-        challenge_boss = clan.get_current_boss_state_cn().target_boss
     if not challenge_boss:
         if progress := clan.get_battle_in_progress(uid=uid):
             challenge_boss = progress[0].target_boss
@@ -837,17 +805,9 @@ async def commit_kill_record(bot: Bot, event: GroupMessageEvent, state: T_State)
         else:
             record_type = "完整刀"
         if not get_config().enable_anti_msg_fail:
-            if clan.clan_info.clan_type != "cn":
-                await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击破\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
-            else:
-                boss_status = clan.get_current_boss_state_cn()
-                await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击破\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}==============\n当前{boss_status.target_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
+            await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击破\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目，生命值{Tools.get_num_str_with_dot(boss_status.boss_hp)}")
         else:
-            if clan.clan_info.clan_type != "cn":
-                await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击败\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目 HP{Tools.get_num_str_with_dot(boss_status.boss_hp)}nya")
-            else:
-                boss_status = clan.get_current_boss_state_cn()
-                await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击破\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前刀为{record_type}==============\n当前{boss_status.target_boss}王第{boss_status.target_cycle}周目 HP{Tools.get_num_str_with_dot(boss_status.boss_hp)}nya")
+            await clanbattle_qq.commit_kill_record.finish(MessageSegment.at(uid) + f"对{challenge_boss}王造成了{Tools.get_num_str_with_dot(record.damage)}点伤害并击败\n今日已出{today_status.today_challenged}刀完整刀，余{today_status.remain_addition_challeng}刀补偿刀，当前为{record_type}\n==============\n当前{challenge_boss}王第{boss_status.target_cycle}周目 HP{Tools.get_num_str_with_dot(boss_status.boss_hp)}nya")
     elif result == CommitRecordResult.illegal_damage_inpiut:
         await clanbattle_qq.commit_kill_record.finish("上报的伤害格式不合法")
     elif result == CommitRecordResult.damage_out_of_hp:
@@ -874,8 +834,6 @@ async def commit_in_progress(bot: Bot, event: GroupMessageEvent, state: T_State)
         await clanbattle_qq.queue.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if not clan.check_joined_clan(str(event.user_id)):
         await clanbattle_qq.queue.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
-    if clan.clan_info.clan_type == "cn":
-        challenge_boss = clan.get_current_boss_state_cn().target_boss
     if not challenge_boss:
         if progress := clan.get_battle_in_progress(uid=uid):
             clan.update_battle_in_progress_record(uid, comment)
@@ -924,8 +882,6 @@ async def commit_on_tree(bot: Bot, event: GroupMessageEvent, state: T_State):
         await clanbattle_qq.on_tree.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     if not clan.check_joined_clan(str(event.user_id)):
         await clanbattle_qq.on_tree.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
-    if clan.clan_info.clan_type == "cn":
-        challenge_boss = clan.get_current_boss_state_cn().target_boss
     if not challenge_boss:
         if in_proc := clan.get_battle_on_tree(uid):
             clan.update_on_tree_record(uid, comment)
@@ -1015,64 +971,47 @@ async def undo_record_commit(bot: Bot, event: GroupMessageEvent, state: T_State)
         await clanbattle_qq.undo_record_commit.finish("您还没有加入公会，请发送“加入公会”来加入公会哦")
     boss_count = int(state['_matched_groups'][0]
                      ) if state['_matched_groups'][0] else None
-    if clan.clan_info.clan_type == "cn":
-        recent_record = clan.get_recent_record()
+    if boss_count:
+        recent_record = clan.get_recent_record(boss=boss_count)
+        if recent_record:
+            challenge_uid = recent_record[0].member_uid
+            proxy_uid = recent_record[0].proxy_report_uid
+            if uid in (challenge_uid, proxy_uid) or clan.check_admin_permission(str(event.user_id)):
+                ret = clan.delete_recent_record(
+                    challenge_uid, boss_count=boss_count)
+                if ret:
+                    msg = "出刀撤回成功"
+                    if boss_count:
+                        boss_status = clan.get_current_boss_state()
+                        boss = boss_status[boss_count-1]
+                        msg += f"\n============\n当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}\n"
+                    await clanbattle_qq.undo_record_commit.finish(msg)
+                else:
+                    await clanbattle_qq.undo_record_commit.finish("出刀撤回失败，内部错误")
+            else:
+                await clanbattle_qq.undo_record_commit.finish("出刀撤回失败，只有管理员能够撤回其他人的刀哦")
+
+        else:
+            await clanbattle_qq.undo_record_commit.finish("出刀撤回失败，未找到对应的出刀记录")
+    else:
+        recent_record = clan.get_recent_record(uid=uid)
         if not recent_record:
             await clanbattle_qq.undo_record_commit.finish("未找到最近的出刀记录")
-        if recent_record[0].member_uid != uid and recent_record[0].proxy_report_uid != uid and not clan.check_admin_permission(uid):
-            await clanbattle_qq.undo_record_commit.finish("您没有权限撤销上一次的报刀")
+        recent_boss_record = clan.get_recent_record(
+            boss=recent_record[0].target_boss)
+        if recent_record[0].record_time != recent_boss_record[0].record_time:
+            await clanbattle_qq.undo_record_commit.finish(f"您在最近一次出刀后该boss有其他的出刀记录，无法撤回，若是管理员或代报刀可使用'撤回 {recent_record[0].target_boss}'来撤回其他人的出刀")
         ret = clan.delete_recent_record(recent_record[0].member_uid)
         if ret:
             msg = "出刀撤回成功"
             boss_count: int = recent_record[0].target_boss
             if boss_count:
-                boss_status = clan.get_current_boss_state_cn()
-                msg += f"\n============\n当前{boss_status.target_boss}王位于{boss_status.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss_status.boss_hp)}\n"
+                boss_status = clan.get_current_boss_state()
+                boss = boss_status[boss_count - 1]
+                msg += f"\n============\n当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}\n"
             await clanbattle_qq.undo_record_commit.finish(msg)
         else:
             await clanbattle_qq.undo_record_commit.finish("出刀撤回失败，内部错误")
-    else:
-        if boss_count:
-            recent_record = clan.get_recent_record(boss=boss_count)
-            if recent_record:
-                challenge_uid = recent_record[0].member_uid
-                proxy_uid = recent_record[0].proxy_report_uid
-                if uid in (challenge_uid, proxy_uid) or clan.check_admin_permission(str(event.user_id)):
-                    ret = clan.delete_recent_record(
-                        challenge_uid, boss_count=boss_count)
-                    if ret:
-                        msg = "出刀撤回成功"
-                        if boss_count:
-                            boss_status = clan.get_current_boss_state()
-                            boss = boss_status[boss_count-1]
-                            msg += f"\n============\n当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}\n"
-                        await clanbattle_qq.undo_record_commit.finish(msg)
-                    else:
-                        await clanbattle_qq.undo_record_commit.finish("出刀撤回失败，内部错误")
-                else:
-                    await clanbattle_qq.undo_record_commit.finish("出刀撤回失败，只有管理员能够撤回其他人的刀哦")
-
-            else:
-                await clanbattle_qq.undo_record_commit.finish("出刀撤回失败，未找到对应的出刀记录")
-        else:
-            recent_record = clan.get_recent_record(uid=uid)
-            if not recent_record:
-                await clanbattle_qq.undo_record_commit.finish("未找到最近的出刀记录")
-            recent_boss_record = clan.get_recent_record(
-                boss=recent_record[0].target_boss)
-            if recent_record[0].record_time != recent_boss_record[0].record_time:
-                await clanbattle_qq.undo_record_commit.finish(f"您在最近一次出刀后该boss有其他的出刀记录，无法撤回，若是管理员或代报刀可使用'撤回 {recent_record[0].target_boss}'来撤回其他人的出刀")
-            ret = clan.delete_recent_record(recent_record[0].member_uid)
-            if ret:
-                msg = "出刀撤回成功"
-                boss_count: int = recent_record[0].target_boss
-                if boss_count:
-                    boss_status = clan.get_current_boss_state()
-                    boss = boss_status[boss_count - 1]
-                    msg += f"\n============\n当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}\n"
-                await clanbattle_qq.undo_record_commit.finish(msg)
-            else:
-                await clanbattle_qq.undo_record_commit.finish("出刀撤回失败，内部错误")
 
 
 @clanbattle_qq.un_on_tree.handle()

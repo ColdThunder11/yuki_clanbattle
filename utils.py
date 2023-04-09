@@ -638,28 +638,6 @@ class ClanBattleData:
                         result.target_boss, boss_cycle, boss_stage, result.boss_hp-result.damage, boss_info["boss"][self.clan_info.clan_type][boss_stage-1][result.target_boss-1]))
         return ret_list
 
-    @cache_return
-    def get_current_boss_state_cn(self) -> BossStatus:
-        if self.clan_info.clan_type != "cn":
-            raise Exception()
-        else:
-            recent_record = self.get_recent_record()
-            if not recent_record:
-                return BossStatus(1, 1, 1, boss_info["boss"][self.clan_info.clan_type][0][0], boss_info["boss"][self.clan_info.clan_type][0][0])
-            else:
-                result = recent_record[0]
-                if result.boss_hp == result.damage:
-                    target_boss = result.target_boss + 1 if result.target_boss < 5 else 1
-                    boss_cycle = result.target_cycle if target_boss != 1 else result.target_cycle + 1
-                    boss_stage = self.get_cycle_stage(boss_cycle)
-                    return BossStatus(target_boss, boss_cycle, boss_stage,
-                                      boss_info["boss"][self.clan_info.clan_type][boss_stage-1][target_boss-1], boss_info["boss"][self.clan_info.clan_type][boss_stage-1][target_boss-1])
-                else:
-                    boss_cycle = result.target_cycle
-                    boss_stage = self.get_cycle_stage(boss_cycle)
-                    return BossStatus(
-                        result.target_boss, boss_cycle, boss_stage, result.boss_hp-result.damage, boss_info["boss"][self.clan_info.clan_type][boss_stage-1][result.target_boss-1])
-
     async def boss_kill_process(self, uid: str, boss: int, proxy_report_uid: str):
         bot: Bot = list(nonebot.get_bots().values())[0]
         gid = self.clan_info.clan_gid
@@ -694,19 +672,12 @@ class ClanBattleData:
                 battle_in_progress.member_uid)
             battle_in_progress.delete_instance()
         # 处理可以出刀提醒
-        if self.clan_info.clan_type != "cn":
-            for boss_state in current_boss_status:
-                if boss_state.target_boss == boss or (current_max_challenge_cycle >= previous_max_challenge_cycle and boss_state.target_cycle == current_max_challenge_cycle):
-                    if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss, boss_cycle=boss_state.target_cycle):
-                        for sub_record in sub_records:
-                            battle_subscribe_able_challenge_set.add(
-                                str(sub_record.member_uid))
-        elif self.clan_info.clan_type == "cn":  # cn 出刀提醒
-            boss_state = self.get_current_boss_state_cn()
-            if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss):
-                for sub_record in sub_records:
-                    battle_subscribe_able_challenge_set.add(
-                        str(sub_record.member_uid))
+        for boss_state in current_boss_status:
+            if boss_state.target_boss == boss or (current_max_challenge_cycle >= previous_max_challenge_cycle and boss_state.target_cycle == current_max_challenge_cycle):
+                if sub_records := self.get_battle_subscribe(boss=boss_state.target_boss, boss_cycle=boss_state.target_cycle):
+                    for sub_record in sub_records:
+                        battle_subscribe_able_challenge_set.add(
+                            str(sub_record.member_uid))
         on_tree_mention_set -= no_report_uid_set
         battle_subscribe_able_challenge_set -= no_report_uid_set
         battle_in_progress_mention_qq_set -= no_report_uid_set
@@ -776,20 +747,9 @@ class ClanBattleData:
     def check_boss_challengeable(self, target_cycle: int, target_boss: int):
         boss_state = self.get_current_boss_state()
         challenge_boss_state = boss_state[target_boss - 1]
-        if self.clan_info.clan_type != "cn":
-            if target_cycle <= self.get_max_challenge_boss_cycle(boss_state) and challenge_boss_state.target_cycle == target_cycle:
-                return True
-            return False
-        else:
-            max_cycle = boss_state[0].target_cycle
-            for boss_status in boss_state:
-                if boss_status.target_cycle < max_cycle:
-                    if target_boss == boss_status.target_boss and target_cycle == boss_status.target_cycle:
-                        return True
-                max_cycle = boss_status.target_cycle if boss_status.target_cycle > max_cycle else max_cycle
-            if max_cycle == boss_state[0].target_cycle and target_boss == boss_status.target_boss:
-                return True
-            return False
+        if target_cycle <= self.get_max_challenge_boss_cycle(boss_state) and challenge_boss_state.target_cycle == target_cycle:
+            return True
+        return False
 
     def check_new_record_legal(self, uid: str, target_cycle: int, target_boss: int, damage: int) -> NewRecordLegalCheckResult:
         boss_state = self.get_current_boss_state()
@@ -870,15 +830,10 @@ class ClanBattleData:
         boss_status = self.get_current_boss_state()
         boss = boss_status[target_boss-1]
         if not target_cycle:
-            if self.clan_info.clan_type != "cn":
-                if self.get_max_challenge_boss_cycle(boss_status) < boss_status[target_boss-1].target_cycle:
-                    cycle = boss.target_cycle
-                else:
-                    cycle = boss.target_cycle + 1
+            if self.get_max_challenge_boss_cycle(boss_status) < boss_status[target_boss-1].target_cycle:
+                cycle = boss.target_cycle
             else:
-                cycle = boss.target_cycle + \
-                    1 if self.get_current_boss_state_cn(
-                    ).target_boss == boss.target_boss else boss.target_cycle
+                cycle = boss.target_cycle + 1
         else:
             cycle = target_cycle
         if not self.check_joined_clan(uid):
@@ -933,23 +888,9 @@ class ClanBattleData:
 
     def commit_force_change_boss_status(self, target_boss: int, target_cycle: int, target_hp: str) -> bool:
         try:
-            if self.clan_info.clan_type != "cn":
-                boss_hp = self.parse_damage(target_hp)
-                self.create_new_record("admin", target_cycle, target_boss,
-                                       0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
-            else:
-                boss_hp = self.parse_damage(target_hp)
-                for i in range(1, 6):
-                    if i == target_boss:
-                        continue
-                    else:
-                        boss_cycle = target_cycle if i < target_boss else target_cycle - 1
-                        if boss_cycle > 0:
-                            boss_stage = self.get_cycle_stage(boss_cycle)
-                            self.create_new_record("admin", boss_cycle, i,
-                                                   boss_info["boss"][self.clan_info.clan_type][boss_stage-1][i-1], boss_info["boss"][self.clan_info.clan_type][boss_stage-1][i-1], "本条记录为会战管理员强制修改进度所创建", False, False, None)
-                self.create_new_record("admin", target_cycle, target_boss,
-                                       0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
+            boss_hp = self.parse_damage(target_hp)
+            self.create_new_record("admin", target_cycle, target_boss,
+                                    0, boss_hp, "本条记录为会战管理员强制修改进度所创建", False, False, None)
         except ClanBattleDamageParseException:
             return False
         return True
