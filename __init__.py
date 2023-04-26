@@ -699,6 +699,7 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
                     on_tree_msg += f"：{tree.comment}"
                 on_tree_list.append(on_tree_msg)
             msg += f"现在{ '、'.join(on_tree_list)}还挂在树上"
+        await clanbattle_qq.progress.finish(msg.strip() if isinstance(msg, str) else msg)
 
 
 @clanbattle_qq.commit_record.handle()
