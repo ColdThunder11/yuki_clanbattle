@@ -1016,3 +1016,91 @@ class Tools:
     def update_boss_info():
         global boss_info
         boss_info = get_config().boss_info
+
+class MessageFormatter:
+
+    @staticmethod
+    def get_boss_status_msg(clan:ClanBattleData, boss_count:int) -> str:
+        boss_status = clan.get_current_boss_state()
+        boss = boss_status[boss_count-1]
+        msg = f"当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}"
+        if not clan.check_boss_challengeable(boss.target_cycle, boss_count):
+            msg += "（不可挑战）"
+        subs = clan.get_battle_subscribe(
+            boss=boss_count, boss_cycle=boss.target_cycle)
+        if subs:
+            has_add_msg = True
+            msg += "\n📅 "
+            for sub in subs:
+                msg += " "
+                msg += clan.get_user_name(sub.member_uid)
+                if sub.comment and sub.comment != "":
+                    msg += f"：{sub.comment}"
+        in_processes = clan.get_battle_in_progress(boss=boss_count)
+        if in_processes:
+            has_add_msg = True
+            msg += "\n🔪 "
+            for proc in in_processes:
+                msg += " "
+                proc_msg = clan.get_user_name(proc.member_uid)
+                if proc.comment and proc.comment != "":
+                    proc_msg += f"：{proc.comment}"
+                msg += proc_msg
+        on_tree = clan.get_battle_on_tree(boss=boss_count)
+        if on_tree:
+            has_add_msg = True
+            msg += "\n🎄 "
+            for tree in on_tree:
+                msg += " "
+                on_tree_msg = clan.get_user_name(tree.member_uid)
+                if tree.comment and tree.comment != "":
+                    on_tree_msg += f"：{tree.comment}"
+                msg += on_tree_msg
+        return msg
+
+    @staticmethod
+    def get_all_boss_status_msg(clan:ClanBattleData) -> str:
+        boss_status = clan.get_current_boss_state()
+        msg = ""
+        boss_count = 0
+        for boss in boss_status:
+            boss_count += 1
+            msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}" if not get_config(
+            ).enable_anti_msg_fail else f"{boss.target_cycle}周目{boss.target_boss}王 HP{Tools.get_num_str_with_dot(boss.boss_hp)}"
+            if not clan.check_boss_challengeable(boss.target_cycle, boss.target_boss):
+                msg += "（不可挑战）"
+            has_add_msg = False
+            subs = clan.get_battle_subscribe(
+                boss=boss_count, boss_cycle=boss.target_cycle)
+            if subs:
+                has_add_msg = True
+                msg += "\n📅 "
+                for sub in subs:
+                    msg += " "
+                    msg += clan.get_user_name(sub.member_uid)
+                    if sub.comment and sub.comment != "":
+                        msg += f"：{sub.comment}"
+            in_processes = clan.get_battle_in_progress(boss=boss_count)
+            if in_processes:
+                has_add_msg = True
+                msg += "\n🔪 "
+                for proc in in_processes:
+                    msg += " "
+                    proc_msg = clan.get_user_name(proc.member_uid)
+                    if proc.comment and proc.comment != "":
+                        proc_msg += f"：{proc.comment}"
+                    msg += proc_msg
+            on_tree = clan.get_battle_on_tree(boss=boss_count)
+            if on_tree:
+                has_add_msg = True
+                msg += "\n🎄 "
+                for tree in on_tree:
+                    msg += " "
+                    on_tree_msg = clan.get_user_name(tree.member_uid)
+                    if tree.comment and tree.comment != "":
+                        on_tree_msg += f"：{tree.comment}"
+                    msg += on_tree_msg
+            msg += "\n"
+            if(has_add_msg):
+                msg += "----------------------\n"
+        return msg

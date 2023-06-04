@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
 from .utils import BossStatus, ClanBattle, ClanBattleData, CommitBattlrOnTreeResult, CommitInProgressResult, CommitRecordResult, CommitSLResult, CommitSubscribeResult, WebAuth
-from .utils import Tools
+from .utils import Tools, MessageFormatter
 
 from .exception import WebsocketResloveException, WebsocketAuthException
 
@@ -35,7 +35,7 @@ clanbattle = ClanBattle()
 
 call_api_orig_func = None
 
-VERSION = "0.2.1"
+VERSION = "0.2.3"
 
 
 async def call_api_func_hook(self, api: str, **data: Any) -> Any:
@@ -644,61 +644,63 @@ async def get_clanbatle_status_qq(bot: Bot, event: GroupMessageEvent, state: T_S
     boss_status = clan.get_current_boss_state()
     if state['_matched_groups'][0] == "状态" and not state['_matched_groups'][1]:
         msg = "当前状态：\n" if not get_config().enable_anti_msg_fail else "Status:\n"
-        for boss in boss_status:
-            msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}" if not get_config(
-            ).enable_anti_msg_fail else f"{boss.target_cycle}周目{boss.target_boss}王 HP{Tools.get_num_str_with_dot(boss.boss_hp)}"
-            if not clan.check_boss_challengeable(boss.target_cycle, boss.target_boss):
-                msg += "（不可挑战）"
-            msg += "\n"
+        # for boss in boss_status:
+        #     msg += f"{boss.target_cycle}周目{boss.target_boss}王，生命值{Tools.get_num_str_with_dot(boss.boss_hp)}" if not get_config(
+        #     ).enable_anti_msg_fail else f"{boss.target_cycle}周目{boss.target_boss}王 HP{Tools.get_num_str_with_dot(boss.boss_hp)}"
+        #     if not clan.check_boss_challengeable(boss.target_cycle, boss.target_boss):
+        #         msg += "（不可挑战）"
+        #     msg += "\n"
+        msg += MessageFormatter.get_all_boss_status_msg(clan=clan)
         status = clan.get_today_record_status_total()
         msg += f"今日已出{status[0]}刀，剩余{status[1]}刀补偿刀"
-        in_processes = clan.get_battle_in_progress()
-        in_processes_num = 0
-        for _ in in_processes:
-            in_processes_num += 1
-        on_tree = clan.get_battle_on_tree()
-        on_tree_num = 0
-        for _ in on_tree:
-            on_tree_num += 1
-        msg += f"\n当前{'有' + str(in_processes_num) + '人' if in_processes_num != 0 else '没有人'}正在出刀，{'有' + str(on_tree_num) + '人' if on_tree_num != 0 else '没有人'}还在树上"
+        # in_processes = clan.get_battle_in_progress()
+        # in_processes_num = 0
+        # for _ in in_processes:
+        #     in_processes_num += 1
+        # on_tree = clan.get_battle_on_tree()
+        # on_tree_num = 0
+        # for _ in on_tree:
+        #     on_tree_num += 1
+        # msg += f"\n当前{'有' + str(in_processes_num) + '人' if in_processes_num != 0 else '没有人'}正在出刀，{'有' + str(on_tree_num) + '人' if on_tree_num != 0 else '没有人'}还在树上"
         await clanbattle_qq.progress.finish(msg.strip() if not get_config().enable_anti_msg_fail else msg.strip() + "喵")
     elif state['_matched_groups'][1]:
         boss_count = int(state['_matched_groups'][1])
-        boss = boss_status[boss_count-1]
-        msg = f"当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}"
-        if not clan.check_boss_challengeable(boss.target_cycle, boss_count):
-            msg += "（不可挑战）"
-        msg += "\n"
-        subs = clan.get_battle_subscribe(
-            boss=boss_count, boss_cycle=boss.target_cycle)
-        if subs:
-            for sub in subs:
-                msg += clan.get_user_name(sub.member_uid)
-                if sub.comment and sub.comment != "":
-                    msg += f"：{sub.comment}"
-            msg += "已经预约该boss"
-        in_processes = clan.get_battle_in_progress(boss=boss_count)
-        if in_processes:
-            if subs:
-                msg += "\n"
-            in_process_list = []
-            for proc in in_processes:
-                proc_msg = clan.get_user_name(proc.member_uid)
-                if proc.comment and proc.comment != "":
-                    proc_msg += f"：{proc.comment}"
-                in_process_list.append(proc_msg)
-            msg += "、".join(in_process_list) + "正在出刀"
-        on_tree = clan.get_battle_on_tree(boss=boss_count)
-        if on_tree:
-            if in_processes or subs:
-                msg += "\n"
-            on_tree_list = []
-            for tree in on_tree:
-                on_tree_msg = clan.get_user_name(tree.member_uid)
-                if tree.comment and tree.comment != "":
-                    on_tree_msg += f"：{tree.comment}"
-                on_tree_list.append(on_tree_msg)
-            msg += f"现在{ '、'.join(on_tree_list)}还挂在树上"
+        msg = MessageFormatter.get_boss_status_msg(clan=clan,boss_count=boss_count)
+        # boss = boss_status[boss_count-1]
+        # msg = f"当前{boss_count}王位于{boss.target_cycle}周目，剩余血量{Tools.get_num_str_with_dot(boss.boss_hp)}"
+        # if not clan.check_boss_challengeable(boss.target_cycle, boss_count):
+        #     msg += "（不可挑战）"
+        # msg += "\n"
+        # subs = clan.get_battle_subscribe(
+        #     boss=boss_count, boss_cycle=boss.target_cycle)
+        # if subs:
+        #     for sub in subs:
+        #         msg += clan.get_user_name(sub.member_uid)
+        #         if sub.comment and sub.comment != "":
+        #             msg += f"：{sub.comment}"
+        #     msg += "已经预约该boss"
+        # in_processes = clan.get_battle_in_progress(boss=boss_count)
+        # if in_processes:
+        #     if subs:
+        #         msg += "\n"
+        #     in_process_list = []
+        #     for proc in in_processes:
+        #         proc_msg = clan.get_user_name(proc.member_uid)
+        #         if proc.comment and proc.comment != "":
+        #             proc_msg += f"：{proc.comment}"
+        #         in_process_list.append(proc_msg)
+        #     msg += "、".join(in_process_list) + "正在出刀"
+        # on_tree = clan.get_battle_on_tree(boss=boss_count)
+        # if on_tree:
+        #     if in_processes or subs:
+        #         msg += "\n"
+        #     on_tree_list = []
+        #     for tree in on_tree:
+        #         on_tree_msg = clan.get_user_name(tree.member_uid)
+        #         if tree.comment and tree.comment != "":
+        #             on_tree_msg += f"：{tree.comment}"
+        #         on_tree_list.append(on_tree_msg)
+        #     msg += f"现在{ '、'.join(on_tree_list)}还挂在树上"
         await clanbattle_qq.progress.finish(msg.strip() if isinstance(msg, str) else msg)
 
 
