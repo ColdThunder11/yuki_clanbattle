@@ -3,6 +3,7 @@ import sys
 
 from os import path
 from peewee import *
+import sqlite3
 
 
 redis_db = 2
@@ -16,8 +17,29 @@ else:
     db_path = path.join(path.dirname(__file__),
                         "clanbattle_test.db").replace(":\\", ":\\\\")
 
+#Check and update table
+if(path.exists(db_path)):
+    db_conn = sqlite3.connect(db_path)
+    c = db_conn.cursor()
+    cur = c.execute("PRAGMA table_info('clan_info')")
+    v_0_2_3_detected = False
+    for row in cur:
+        if(row[1] == "clan_query_info"):
+            v_0_2_3_detected = True
+    cur.close()
+    if(not v_0_2_3_detected):
+        print("YukiClanbattle: Old database detected, update table struct...")
+        c = db_conn.cursor()
+        c.execute("ALTER TABLE clan_info ADD COLUMN clan_query_info text")
+        c.close()
+        print("YukiClanbattle: Update table struct success")
+    db_conn.commit()
+    db_conn.close()
+
+
+
+
 sqlite_db = SqliteDatabase(db_path)
-#db = SqliteDatabase(r"d:\\Code\nb2_pcr_clanbattle_bot\plugins\clanbattle\clanbattle.db")
 
 
 class BaseModel(Model):
@@ -51,6 +73,7 @@ class ClanInfo(BaseModel):
     #current_boss = IntegerField()
     #current_boss_hp = IntegerField()
     clan_web_msg_push = BooleanField(default=True)
+    clan_query_info = TextField()
 
     class Meta:
         table_name = "clan_info"

@@ -16,8 +16,11 @@ import json
 import uuid
 import hashlib
 import pydantic
+import httpx
 
 from .config import get_config
+
+
 
 
 class BossInfo(pydantic.BaseModel):
@@ -687,12 +690,12 @@ class ClanBattleData:
         if battle_subscribe_mention_qq_set or battle_in_progress_mention_qq_set:
             memtion_boss_killed_msg += MessageSegment.text(
                 f"{boss}王已被击败，无需继续挑战\n")
-            if battle_subscribe_mention_qq_set:
-                memtion_boss_killed_msg += Message(
-                    map(MessageSegment.at, battle_subscribe_mention_qq_set))
-            if battle_in_progress_mention_qq_set:
-                memtion_boss_killed_msg += Message(
-                    map(MessageSegment.at, battle_subscribe_mention_qq_set))
+            # if battle_subscribe_mention_qq_set:
+            #     memtion_boss_killed_msg += Message(
+            #         map(MessageSegment.at, battle_subscribe_mention_qq_set))
+            # if battle_in_progress_mention_qq_set:
+            #     memtion_boss_killed_msg += Message(
+            #         map(MessageSegment.at, battle_subscribe_mention_qq_set))
         if len(memtion_boss_killed_msg) > 0:
             try:
                 await bot.send_group_msg(group_id=gid, message=memtion_boss_killed_msg)
@@ -701,9 +704,9 @@ class ClanBattleData:
                 pass
         # 下树提醒
         on_tree_mention_msg = Message()
-        if on_tree_mention_set:
-            on_tree_mention_msg += MessageSegment.text("下树啦\n") + \
-                Message(map(MessageSegment.at, on_tree_mention_set))
+        # if on_tree_mention_set:
+        #     on_tree_mention_msg += MessageSegment.text("下树啦\n") + \
+        #         Message(map(MessageSegment.at, on_tree_mention_set))
         if len(on_tree_mention_msg) > 0:
             try:
                 await bot.send_group_msg(group_id=gid, message=on_tree_mention_msg)
@@ -712,9 +715,9 @@ class ClanBattleData:
                 pass
         # 预约可挑战提醒
         battle_subscribe_able_challenge_msg = Message()
-        if battle_subscribe_able_challenge_set:
-            battle_subscribe_able_challenge_msg += MessageSegment.text("现在可以出刀了\n") + Message(
-                map(MessageSegment.at, battle_subscribe_able_challenge_set))
+        # if battle_subscribe_able_challenge_set:
+        #     battle_subscribe_able_challenge_msg += MessageSegment.text("现在可以出刀了\n") + Message(
+        #         map(MessageSegment.at, battle_subscribe_able_challenge_set))
         if len(battle_subscribe_able_challenge_msg) > 0:
             try:
                 await bot.send_group_msg(group_id=gid, message=battle_subscribe_able_challenge_msg)
@@ -1028,7 +1031,7 @@ class MessageFormatter:
             msg += "（不可挑战）"
         subs = clan.get_battle_subscribe(
             boss=boss_count, boss_cycle=boss.target_cycle)
-        if subs:
+        if subs: 
             has_add_msg = True
             msg += "\n📅 "
             for sub in subs:
@@ -1104,3 +1107,60 @@ class MessageFormatter:
             if(has_add_msg):
                 msg += "----------------------\n"
         return msg
+
+class ClanRankQueryHelperTw:
+    @staticmethod
+    async def query_recent_rank(clan_name:str) -> Tuple[str,int,int]:
+        async with httpx.AsyncClient(proxies="http://127.0.0.1:10809") as client:
+            r = await client.get("https://rank.layvtwt.top/api/current/getalltime/tw")
+            r_json = r.json()
+            last_day = list(r_json['data']["1"].keys())[-1]
+            last_time = list(r_json['data']["1"][last_day])[-1]
+            query_file_name = last_day + last_time
+            r = await client.post("https://rank.layvtwt.top/api/search/clan_name",json={
+                "filename" : f"tw/merge/{query_file_name}",
+                "page" : 0,
+                "page_limit": 10,
+                "search": clan_name
+            })
+            r_json = r.json()
+            if(r_json["state"] != "success"):
+                return ("",-1,-1)
+            if(r_json["total"] < 1):
+                return ("",-2,-2)
+            clan_data = r_json["data"][list(r_json["data"].keys())[0]]
+            clan_name = clan_data["clan_name"]
+            clan_rank : str = clan_data["rank"]
+            clan_server = clan_rank.split("#")[0].strip("T")
+            clan_server_rank = clan_rank.split("#")[1]
+            return (clan_name,int(clan_server),int(clan_server_rank))
+        
+    @staticmethod
+    def query_recent_rank_sync(clan_name:str) -> Tuple[str,int,int]:
+        with httpx.Client(proxies="http://127.0.0.1:10809") as client:
+            r = client.get("https://rank.layvtwt.top/api/current/getalltime/tw")
+            r_json = r.json()
+            last_day = list(r_json['data']["1"].keys())[-1]
+            last_time = list(r_json['data']["1"][last_day])[-1]
+            query_file_name = last_day + last_time
+            r = client.post("https://rank.layvtwt.top/api/search/clan_name",json={
+                "filename" : f"tw/merge/{query_file_name}",
+                "page" : 0,
+                "page_limit": 10,
+                "search": clan_name
+            })
+            print(r.text)
+            r_json = r.json()
+            if(r_json["state"] != "success"):
+                return ("",-1,-1)
+            if(r_json["total"] < 1):
+                return ("",-2,-2)
+            clan_data = r_json["data"][list(r_json["data"].keys())[0]]
+            clan_name = clan_data["clan_name"]
+            clan_rank : str = clan_data["rank"]
+            clan_server = clan_rank.split("#")[0].strip("T")
+            clan_server_rank = clan_rank.split("#")[1]
+            return (clan_name,int(clan_server),int(clan_server_rank))
+        
+
+#ClanRankQueryHelperTw.query_recent_rank_sync("東方幻想鄉")

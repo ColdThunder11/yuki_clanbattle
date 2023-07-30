@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
 from .utils import BossStatus, ClanBattle, ClanBattleData, CommitBattlrOnTreeResult, CommitInProgressResult, CommitRecordResult, CommitSLResult, CommitSubscribeResult, WebAuth
-from .utils import Tools, MessageFormatter
+from .utils import Tools, MessageFormatter, ClanRankQueryHelperTw
 
 from .exception import WebsocketResloveException, WebsocketAuthException
 
@@ -39,7 +39,6 @@ VERSION = "0.2.3"
 
 
 async def call_api_func_hook(self, api: str, **data: Any) -> Any:
-    # print(api)
     if get_config().disable_private_message:
         if api == "send_msg":
             if (not "message_type" in data and "user_id" in data) or ("message_type" in data and data["message_type"] == "private"):
@@ -587,6 +586,7 @@ class clanbattle_qq:
     delete_clan = worker.on_regex(r"^清除公会数据$")
     query_certain_num = worker.on_regex(r"^查(([0-3]{1})|(补偿))刀$")
     notice_not_report = worker.on_regex(r"^催刀([0-2]{1})?$")
+    clan_rank = worker.on_regex(r"^公会排名$")
     #killcalc = worker.on_regex(r"^合刀( )?(\d+) (\d+) (\d+)( \d+)?$")
 
 
@@ -1512,3 +1512,24 @@ async def notice_not_report(bot: Bot, event: GroupMessageEvent, state: T_State):
             notice_message = Message("管理员催你快去出刀啦")
     if len(notice_message) > 1:
         await bot.send_group_msg(group_id=gid, message=notice_message)
+
+@clanbattle_qq.clan_rank.handle()
+async def clan_rank(bot: Bot, event: GroupMessageEvent, state: T_State):
+    gid = str(event.group_id)
+    uid = str(event.user_id)
+    clan = clanbattle.get_clan_data(gid)
+    if not clan:
+        await clanbattle_qq.notice_not_report.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
+    clan_name = clan.clan_info.clan_name
+    if(clan.clan_info.clan_type != "tw"):
+        await bot.send_group_msg(group_id=gid, message=f"当前该功能只支持台服")
+        return
+    try:
+        query_rersult = await ClanRankQueryHelperTw.query_recent_rank(clan_name=clan_name)
+        if(query_rersult[1] <= 0):
+            await bot.send_group_msg(group_id=gid, message=f"查询出错")
+            return
+        await bot.send_group_msg(group_id=gid, message=f"当前工会服务器：台{query_rersult[0]}, 排名{query_rersult[1]}")
+    except:
+        await bot.send_group_msg(group_id=gid, message=f"查询出错")
+    
