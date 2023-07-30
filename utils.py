@@ -1111,7 +1111,7 @@ class MessageFormatter:
 class ClanRankQueryHelperTw:
     @staticmethod
     async def query_recent_rank(clan_name:str) -> Tuple[str,int,int]:
-        async with httpx.AsyncClient(proxies="http://127.0.0.1:10809") as client:
+        async with httpx.AsyncClient() as client:
             r = await client.get("https://rank.layvtwt.top/api/current/getalltime/tw")
             r_json = r.json()
             last_day = list(r_json['data']["1"].keys())[-1]
@@ -1137,7 +1137,7 @@ class ClanRankQueryHelperTw:
         
     @staticmethod
     def query_recent_rank_sync(clan_name:str) -> Tuple[str,int,int]:
-        with httpx.Client(proxies="http://127.0.0.1:10809") as client:
+        with httpx.Client() as client:
             r = client.get("https://rank.layvtwt.top/api/current/getalltime/tw")
             r_json = r.json()
             last_day = list(r_json['data']["1"].keys())[-1]
