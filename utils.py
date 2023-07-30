@@ -690,12 +690,12 @@ class ClanBattleData:
         if battle_subscribe_mention_qq_set or battle_in_progress_mention_qq_set:
             memtion_boss_killed_msg += MessageSegment.text(
                 f"{boss}王已被击败，无需继续挑战\n")
-            # if battle_subscribe_mention_qq_set:
-            #     memtion_boss_killed_msg += Message(
-            #         map(MessageSegment.at, battle_subscribe_mention_qq_set))
-            # if battle_in_progress_mention_qq_set:
-            #     memtion_boss_killed_msg += Message(
-            #         map(MessageSegment.at, battle_subscribe_mention_qq_set))
+            if battle_subscribe_mention_qq_set:
+                memtion_boss_killed_msg += Message(
+                    map(MessageSegment.at, battle_subscribe_mention_qq_set))
+            if battle_in_progress_mention_qq_set:
+                memtion_boss_killed_msg += Message(
+                    map(MessageSegment.at, battle_subscribe_mention_qq_set))
         if len(memtion_boss_killed_msg) > 0:
             try:
                 await bot.send_group_msg(group_id=gid, message=memtion_boss_killed_msg)
@@ -704,9 +704,9 @@ class ClanBattleData:
                 pass
         # 下树提醒
         on_tree_mention_msg = Message()
-        # if on_tree_mention_set:
-        #     on_tree_mention_msg += MessageSegment.text("下树啦\n") + \
-        #         Message(map(MessageSegment.at, on_tree_mention_set))
+        if on_tree_mention_set:
+            on_tree_mention_msg += MessageSegment.text("下树啦\n") + \
+                Message(map(MessageSegment.at, on_tree_mention_set))
         if len(on_tree_mention_msg) > 0:
             try:
                 await bot.send_group_msg(group_id=gid, message=on_tree_mention_msg)
@@ -715,9 +715,9 @@ class ClanBattleData:
                 pass
         # 预约可挑战提醒
         battle_subscribe_able_challenge_msg = Message()
-        # if battle_subscribe_able_challenge_set:
-        #     battle_subscribe_able_challenge_msg += MessageSegment.text("现在可以出刀了\n") + Message(
-        #         map(MessageSegment.at, battle_subscribe_able_challenge_set))
+        if battle_subscribe_able_challenge_set:
+            battle_subscribe_able_challenge_msg += MessageSegment.text("现在可以出刀了\n") + Message(
+                map(MessageSegment.at, battle_subscribe_able_challenge_set))
         if len(battle_subscribe_able_challenge_msg) > 0:
             try:
                 await bot.send_group_msg(group_id=gid, message=battle_subscribe_able_challenge_msg)
