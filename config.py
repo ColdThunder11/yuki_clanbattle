@@ -9,6 +9,7 @@ class ConfigClass(pydantic.BaseModel):
     enable_anti_msg_fail: bool
     db_salt: str
     boss_info: dict
+    http_proxy: Optional[str] = None
 
 
 clanbattle_config: "ConfigClass" = None

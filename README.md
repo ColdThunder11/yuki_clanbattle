@@ -32,6 +32,7 @@ peewee: `pip install peewee`
     disable_private_message: 禁用私聊回复（不影响私聊接收功能）
     enable_anti_msg_fail: 规避风控模式，会修改部分回复内容以降低消息发送失败概率
     db_salt: 用户 Web 密码存储加密密钥
+    http_proxy: 查询工会排名API的Http代理，可空
     boss_info: BOSS相关配置
         # 下列每个设置项均以 日服(jp) 台服(tw) 国服(cn) 作为区分
         boss: 各个阶段的各个BOSS血量

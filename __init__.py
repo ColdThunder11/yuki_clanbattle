@@ -1522,14 +1522,14 @@ async def clan_rank(bot: Bot, event: GroupMessageEvent, state: T_State):
         await clanbattle_qq.notice_not_report.finish("本群还未创建公会，发送“创建[国台日]服公会”来创建公会")
     clan_name = clan.clan_info.clan_name
     if(clan.clan_info.clan_type != "tw"):
-        await bot.send_group_msg(group_id=gid, message=f"当前该功能只支持台服")
+        await bot.send_group_msg(group_id=gid, message=f"当前该功能只支持台2")
         return
     try:
-        query_rersult = await ClanRankQueryHelperTw.query_recent_rank(clan_name=clan_name)
+        query_rersult = await ClanRankQueryHelperTw.query_recent_rank(clan_name=clan_name,clan_server="2")
         if(query_rersult[1] <= 0):
             await bot.send_group_msg(group_id=gid, message=f"查询出错")
             return
-        await bot.send_group_msg(group_id=gid, message=f"当前工会服务器：台{query_rersult[0]}, 排名{query_rersult[1]}")
+        await bot.send_group_msg(group_id=gid, message=f"当前公会服务器：台{query_rersult[0]}, 排名{query_rersult[1]}")
     except:
         await bot.send_group_msg(group_id=gid, message=f"查询出错")
     

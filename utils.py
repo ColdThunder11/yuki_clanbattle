@@ -1110,15 +1110,17 @@ class MessageFormatter:
 
 class ClanRankQueryHelperTw:
     @staticmethod
-    async def query_recent_rank(clan_name:str) -> Tuple[str,int,int]:
-        async with httpx.AsyncClient() as client:
+    async def query_recent_rank(clan_name:str, clan_server:str, proxy:str = None) -> Tuple[str,int,int]:
+        async with httpx.AsyncClient(proxies=proxy) as client:
+            client.headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+            client.headers["Referer"] = "https://rank.layvtwt.top/?"
             r = await client.get("https://rank.layvtwt.top/api/current/getalltime/tw")
             r_json = r.json()
             last_day = list(r_json['data']["1"].keys())[-1]
             last_time = list(r_json['data']["1"][last_day])[-1]
             query_file_name = last_day + last_time
             r = await client.post("https://rank.layvtwt.top/api/search/clan_name",json={
-                "filename" : f"tw/merge/{query_file_name}",
+                "filename" : f"tw/{clan_server}/{query_file_name}",
                 "page" : 0,
                 "page_limit": 10,
                 "search": clan_name
@@ -1131,9 +1133,7 @@ class ClanRankQueryHelperTw:
             clan_data = r_json["data"][list(r_json["data"].keys())[0]]
             clan_name = clan_data["clan_name"]
             clan_rank : str = clan_data["rank"]
-            clan_server = clan_rank.split("#")[0].strip("T")
-            clan_server_rank = clan_rank.split("#")[1]
-            return (clan_name,int(clan_server),int(clan_server_rank))
+            return (clan_name,int(clan_server),int(clan_rank))
         
     @staticmethod
     def query_recent_rank_sync(clan_name:str) -> Tuple[str,int,int]:
@@ -1163,4 +1163,4 @@ class ClanRankQueryHelperTw:
             return (clan_name,int(clan_server),int(clan_server_rank))
         
 
-#ClanRankQueryHelperTw.query_recent_rank_sync("東方幻想鄉")
+#ClanRankQueryHelperTw.query_recent_rank_sync("只")

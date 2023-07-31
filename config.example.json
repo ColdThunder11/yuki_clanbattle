@@ -3,6 +3,7 @@
     "disable_private_message": true,
     "enable_anti_msg_fail": true,
     "db_salt" : "114514",
+    "http_proxy" : null,
     "boss_info" : {
         "boss": {
             "jp": [
